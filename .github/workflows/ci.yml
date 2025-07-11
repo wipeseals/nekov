@@ -38,10 +38,11 @@ jobs:
       if: steps.cache-riscv-tests.outputs.cache-hit != 'true'
       run: |
         cd riscv-tests
-        autoconf
-        ./configure --prefix=$(pwd)/../riscv-tests-binaries
-        make
-        make install
+        ./configure --prefix=$(pwd)/../riscv-tests-binaries --with-xlen=32
+        cd isa
+        XLEN=32 RISCV_PREFIX=riscv64-unknown-elf- make
+        mkdir -p ../../riscv-tests-binaries/share/riscv-tests/isa
+        cp rv32ui-p-* ../../riscv-tests-binaries/share/riscv-tests/isa/
 
   test:
     name: Test
