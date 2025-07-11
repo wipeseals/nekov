@@ -1,42 +1,44 @@
 /// Memory management for the RISC-V emulator
 use crate::EmulatorError;
+use std::collections::HashMap;
 
-/// Default memory size (4MB)
-const DEFAULT_MEMORY_SIZE: usize = 4 * 1024 * 1024;
-
-/// Memory implementation
+/// Memory implementation using dictionary-based storage
 #[derive(Debug, Clone)]
 pub struct Memory {
-    /// Memory data
-    data: Vec<u8>,
+    /// Memory data - only stores written bytes
+    data: HashMap<u32, u8>,
     /// Base address
     base_address: u32,
 }
 
 impl Memory {
-    /// Create a new memory instance with default size
+    /// Create a new memory instance
     pub fn new() -> Self {
-        Self::with_size(DEFAULT_MEMORY_SIZE)
-    }
-
-    /// Create a new memory instance with specified size
-    pub fn with_size(size: usize) -> Self {
         Self {
-            data: vec![0; size],
+            data: HashMap::new(),
             base_address: 0x8000_0000, // Typical RISC-V RAM base address
         }
     }
 
+    /// Create a new memory instance (kept for API compatibility)
+    pub fn with_size(_size: usize) -> Self {
+        Self::new()
+    }
+
     /// Read a byte from memory
     pub fn read_byte(&self, address: u32) -> Result<u8, EmulatorError> {
-        let offset = self.address_to_offset(address)?;
-        Ok(self.data[offset])
+        match self.data.get(&address) {
+            Some(&value) => Ok(value),
+            None => {
+                eprintln!("Warning: Reading from uninitialized memory address 0x{address:08x}, returning 0xFF");
+                Ok(0xFF)
+            }
+        }
     }
 
     /// Write a byte to memory
     pub fn write_byte(&mut self, address: u32, value: u8) -> Result<(), EmulatorError> {
-        let offset = self.address_to_offset(address)?;
-        self.data[offset] = value;
+        self.data.insert(address, value);
         Ok(())
     }
 
@@ -46,17 +48,12 @@ impl Memory {
             return Err(EmulatorError::MemoryAccessError);
         }
 
-        let offset = self.address_to_offset(address)?;
-        if offset + 3 >= self.data.len() {
-            return Err(EmulatorError::MemoryAccessError);
-        }
+        let byte0 = self.read_byte(address)?;
+        let byte1 = self.read_byte(address + 1)?;
+        let byte2 = self.read_byte(address + 2)?;
+        let byte3 = self.read_byte(address + 3)?;
 
-        let value = u32::from_le_bytes([
-            self.data[offset],
-            self.data[offset + 1],
-            self.data[offset + 2],
-            self.data[offset + 3],
-        ]);
+        let value = u32::from_le_bytes([byte0, byte1, byte2, byte3]);
         Ok(value)
     }
 
@@ -66,44 +63,25 @@ impl Memory {
             return Err(EmulatorError::MemoryAccessError);
         }
 
-        let offset = self.address_to_offset(address)?;
-        if offset + 3 >= self.data.len() {
-            return Err(EmulatorError::MemoryAccessError);
-        }
-
         let bytes = value.to_le_bytes();
-        self.data[offset..offset + 4].copy_from_slice(&bytes);
+        self.write_byte(address, bytes[0])?;
+        self.write_byte(address + 1, bytes[1])?;
+        self.write_byte(address + 2, bytes[2])?;
+        self.write_byte(address + 3, bytes[3])?;
         Ok(())
     }
 
     /// Load data into memory at specified address
     pub fn load_data(&mut self, address: u32, data: &[u8]) -> Result<(), EmulatorError> {
-        let offset = self.address_to_offset(address)?;
-        if offset + data.len() > self.data.len() {
-            return Err(EmulatorError::MemoryAccessError);
+        for (i, &byte) in data.iter().enumerate() {
+            self.write_byte(address + i as u32, byte)?;
         }
-
-        self.data[offset..offset + data.len()].copy_from_slice(data);
         Ok(())
     }
 
     /// Get the base address of memory
     pub fn base_address(&self) -> u32 {
         self.base_address
-    }
-
-    /// Convert an address to an offset in the data array
-    fn address_to_offset(&self, address: u32) -> Result<usize, EmulatorError> {
-        if address < self.base_address {
-            return Err(EmulatorError::MemoryAccessError);
-        }
-
-        let offset = (address - self.base_address) as usize;
-        if offset >= self.data.len() {
-            return Err(EmulatorError::MemoryAccessError);
-        }
-
-        Ok(offset)
     }
 }
 
@@ -121,7 +99,8 @@ mod tests {
     fn test_memory_new() {
         let memory = Memory::new();
         assert_eq!(memory.base_address(), 0x8000_0000);
-        assert_eq!(memory.data.len(), DEFAULT_MEMORY_SIZE);
+        // Dictionary-based memory starts empty
+        assert!(memory.data.is_empty());
     }
 
     #[test]
@@ -180,17 +159,23 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_out_of_bounds() {
-        let mut memory = Memory::new();
+    fn test_memory_uninitialized_read() {
+        let memory = Memory::new();
+        let base = memory.base_address();
 
-        // Test access below base address
-        let result = memory.read_byte(0x1000);
-        assert!(matches!(result, Err(EmulatorError::MemoryAccessError)));
+        // Reading uninitialized memory should return 0xFF with warning
+        assert_eq!(memory.read_byte(base).unwrap(), 0xFF);
+        assert_eq!(memory.read_byte(base + 100).unwrap(), 0xFF);
+        assert_eq!(memory.read_byte(0x1000).unwrap(), 0xFF); // Any address should work now
+    }
 
-        // Test access beyond memory size
-        let high_address = memory.base_address() + DEFAULT_MEMORY_SIZE as u32;
-        let result = memory.read_byte(high_address);
-        assert!(matches!(result, Err(EmulatorError::MemoryAccessError)));
+    #[test]
+    fn test_memory_read_uninitialized_word() {
+        let memory = Memory::new();
+        let base = memory.base_address();
+
+        // Reading uninitialized word should return 0xFFFFFFFF (all bytes 0xFF)
+        assert_eq!(memory.read_word(base).unwrap(), 0xFFFFFFFF);
     }
 
     #[test]
