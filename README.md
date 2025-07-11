@@ -1,5 +1,7 @@
 # nekov
 
+[![CI](https://github.com/wipeseals/nekov/workflows/CI/badge.svg)](https://github.com/wipeseals/nekov/actions)
+
 A RISC-V emulator in Rust, probably written by a cat. 🐈
 
 ## Features
