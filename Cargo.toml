@@ -1,0 +1,14 @@
+[package]
+name = "nekov"
+version = "0.1.0"
+edition = "2021"
+authors = ["wipeseals"]
+description = "A RISC-V emulator in Rust, probably written by a cat. 🐈"
+license = "MIT"
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }
+object = "0.37.1"
+
+[dev-dependencies]
+tempfile = "3.20.0"
