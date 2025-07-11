@@ -28,8 +28,8 @@ jobs:
       id: cache-key
       run: |
         echo "key=riscv-tests-${{ hashFiles('riscv-tests/**') }}" >> $GITHUB_OUTPUT
-    - name: Cache RISC-V test binaries
-      uses: actions/cache@v3
+    - name: Restore RISC-V test binaries cache
+      uses: actions/cache/restore@v3
       id: cache-riscv-tests
       with:
         path: riscv-tests-binaries/share/riscv-tests/isa
@@ -37,6 +37,12 @@ jobs:
     - name: Build RISC-V tests
       if: steps.cache-riscv-tests.outputs.cache-hit != 'true'
       run: ./scripts/build_riscv_tests.sh
+    - name: Save RISC-V test binaries to cache
+      if: steps.cache-riscv-tests.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v3
+      with:
+        path: riscv-tests-binaries/share/riscv-tests/isa
+        key: ${{ steps.cache-key.outputs.key }}
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     - name: Test RISC-V binaries with emulator
