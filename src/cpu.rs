@@ -1,5 +1,5 @@
 /// RISC-V CPU implementation
-use crate::EmulatorError;
+use crate::{memory::Memory, EmulatorError, Result};
 
 /// RISC-V register count (x0-x31)
 const NUM_REGISTERS: usize = 32;
@@ -47,9 +47,57 @@ impl Cpu {
         // x0 cannot be written, invalid registers are ignored
     }
 
+    /// Execute a single instruction
+    pub fn step(&mut self, memory: &mut Memory) -> Result<()> {
+        // Fetch instruction from memory
+        let instruction = memory.read_word(self.pc)?;
+        
+        // Decode and execute instruction
+        self.decode_and_execute(instruction)?;
+        
+        Ok(())
+    }
+
+    /// Decode and execute an instruction
+    fn decode_and_execute(&mut self, instruction: u32) -> Result<()> {
+        // Extract opcode (bits 0-6)
+        let opcode = instruction & 0x7F;
+        
+        match opcode {
+            0x13 => {
+                // I-type instruction (ADDI, SLTI, etc.)
+                self.execute_i_type(instruction)
+            }
+            _ => {
+                // Unsupported instruction
+                Err(EmulatorError::UnsupportedInstruction)
+            }
+        }
+    }
+
+    /// Execute I-type instructions
+    fn execute_i_type(&mut self, instruction: u32) -> Result<()> {
+        // Extract fields
+        let rd = ((instruction >> 7) & 0x1F) as usize;
+        let funct3 = (instruction >> 12) & 0x7;
+        let rs1 = ((instruction >> 15) & 0x1F) as usize;
+        let imm = (instruction as i32) >> 20; // Sign-extend immediate
+
+        match funct3 {
+            0x0 => {
+                // ADDI instruction
+                self.execute_addi(rd, rs1, imm)
+            }
+            _ => {
+                // Unsupported funct3
+                Err(EmulatorError::UnsupportedInstruction)
+            }
+        }
+    }
+
     /// Execute an ADDI instruction (Add Immediate)
     /// Format: addi rd, rs1, imm
-    pub fn execute_addi(&mut self, rd: usize, rs1: usize, imm: i32) -> Result<(), EmulatorError> {
+    pub fn execute_addi(&mut self, rd: usize, rs1: usize, imm: i32) -> Result<()> {
         if rd >= NUM_REGISTERS || rs1 >= NUM_REGISTERS {
             return Err(EmulatorError::UnsupportedInstruction);
         }
@@ -60,6 +108,37 @@ impl Cpu {
         self.pc = self.pc.wrapping_add(4); // Increment PC by 4 bytes
 
         Ok(())
+    }
+
+    /// Run the CPU until it encounters an error or reaches a halt condition
+    pub fn run(&mut self, memory: &mut Memory, max_instructions: Option<u32>) -> Result<u32> {
+        let mut executed_instructions = 0;
+
+        loop {
+            // Check instruction limit
+            if let Some(max) = max_instructions {
+                if executed_instructions >= max {
+                    break;
+                }
+            }
+
+            // Execute one instruction
+            match self.step(memory) {
+                Ok(()) => {
+                    executed_instructions += 1;
+                }
+                Err(EmulatorError::UnsupportedInstruction) => {
+                    println!("Unsupported instruction at PC: 0x{:08x}", self.pc);
+                    break;
+                }
+                Err(e) => {
+                    println!("Error at PC: 0x{:08x}: {e}", self.pc);
+                    return Err(e);
+                }
+            }
+        }
+
+        Ok(executed_instructions)
     }
 }
 
@@ -72,6 +151,7 @@ impl Default for Cpu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::memory::Memory;
 
     #[test]
     fn test_cpu_new() {
@@ -140,5 +220,70 @@ mod tests {
         // Test invalid source register
         let result = cpu.execute_addi(1, 100, 5);
         assert!(matches!(result, Err(EmulatorError::UnsupportedInstruction)));
+    }
+
+    #[test]
+    fn test_decode_addi_instruction() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        // Set up initial state
+        cpu.pc = memory.base_address();
+        cpu.write_register(1, 10);
+
+        // Create ADDI instruction: addi x2, x1, 5
+        // Instruction format: [imm(12) | rs1(5) | funct3(3) | rd(5) | opcode(7)]
+        // imm=5, rs1=1, funct3=0, rd=2, opcode=0x13
+        let instruction: u32 = (5 << 20) | (1 << 15) | (0 << 12) | (2 << 7) | 0x13;
+
+        // Write instruction to memory
+        memory.write_word(cpu.pc, instruction).unwrap();
+
+        // Execute instruction
+        cpu.step(&mut memory).unwrap();
+
+        // Verify results
+        assert_eq!(cpu.read_register(2), 15); // 10 + 5
+        assert_eq!(cpu.pc, memory.base_address() + 4);
+    }
+
+    #[test]
+    fn test_unsupported_instruction() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.pc = memory.base_address();
+
+        // Create an unsupported instruction (opcode 0x7F)
+        let instruction: u32 = 0x7F;
+        memory.write_word(cpu.pc, instruction).unwrap();
+
+        // Should return UnsupportedInstruction error
+        let result = cpu.step(&mut memory);
+        assert!(matches!(result, Err(EmulatorError::UnsupportedInstruction)));
+    }
+
+    #[test]
+    fn test_cpu_run_with_limit() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+
+        cpu.pc = memory.base_address();
+
+        // Create multiple ADDI instructions
+        let instruction: u32 = (1 << 20) | (1 << 15) | (0 << 12) | (1 << 7) | 0x13; // addi x1, x1, 1
+        
+        // Write instructions to memory
+        for i in 0..10 {
+            memory.write_word(cpu.pc + i * 4, instruction).unwrap();
+        }
+
+        // Set initial register value
+        cpu.write_register(1, 0);
+
+        // Run with instruction limit
+        let executed = cpu.run(&mut memory, Some(5)).unwrap();
+        assert_eq!(executed, 5);
+        assert_eq!(cpu.read_register(1), 5); // Should have incremented 5 times
     }
 }

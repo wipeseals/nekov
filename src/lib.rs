@@ -1,4 +1,5 @@
 pub mod cpu;
+pub mod elf_loader;
 pub mod memory;
 
 use std::path::Path;
@@ -34,14 +35,38 @@ pub fn run_emulator(binary_path: &Path) -> Result<()> {
     }
 
     // Initialize CPU and memory
-    let _cpu = cpu::Cpu::new();
-    let _memory = memory::Memory::new();
+    let mut cpu = cpu::Cpu::new();
+    let mut memory = memory::Memory::new();
 
-    // TODO: Load ELF binary into memory
-    println!("TODO: Load ELF binary: {}", binary_path.display());
+    // Load ELF binary into memory
+    println!("Loading ELF binary: {}", binary_path.display());
+    let entry_point = elf_loader::ElfLoader::load_elf(binary_path, &mut memory)?;
 
-    // TODO: Run emulation loop
-    println!("TODO: Run emulation loop");
+    // Set CPU program counter to entry point
+    cpu.pc = entry_point;
+    println!("Entry point: 0x{entry_point:08x}");
+
+    // Run emulation with instruction limit for safety
+    println!("Starting emulation...");
+    let executed_instructions = cpu.run(&mut memory, Some(1000))?;
+    println!("Emulation completed. Executed {executed_instructions} instructions.");
+
+    // Print final CPU state
+    println!("Final PC: 0x{:08x}", cpu.pc);
+    println!("Registers:");
+    for i in 0..8 {
+        println!(
+            "x{}: 0x{:08x}  x{}: 0x{:08x}  x{}: 0x{:08x}  x{}: 0x{:08x}",
+            i,
+            cpu.read_register(i),
+            i + 8,
+            cpu.read_register(i + 8),
+            i + 16,
+            cpu.read_register(i + 16),
+            i + 24,
+            cpu.read_register(i + 24)
+        );
+    }
 
     Ok(())
 }
