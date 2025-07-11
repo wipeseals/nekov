@@ -51,10 +51,10 @@ impl Cpu {
     pub fn step(&mut self, memory: &mut Memory) -> Result<()> {
         // Fetch instruction from memory
         let instruction = memory.read_word(self.pc)?;
-        
+
         // Decode and execute instruction
         self.decode_and_execute(instruction)?;
-        
+
         Ok(())
     }
 
@@ -62,7 +62,7 @@ impl Cpu {
     fn decode_and_execute(&mut self, instruction: u32) -> Result<()> {
         // Extract opcode (bits 0-6)
         let opcode = instruction & 0x7F;
-        
+
         match opcode {
             0x13 => {
                 // I-type instruction (ADDI, SLTI, etc.)
@@ -272,7 +272,7 @@ mod tests {
 
         // Create multiple ADDI instructions
         let instruction: u32 = (1 << 20) | (1 << 15) | (0 << 12) | (1 << 7) | 0x13; // addi x1, x1, 1
-        
+
         // Write instructions to memory
         for i in 0..10 {
             memory.write_word(cpu.pc + i * 4, instruction).unwrap();

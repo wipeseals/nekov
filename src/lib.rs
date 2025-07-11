@@ -39,7 +39,6 @@ pub fn run_emulator(binary_path: &Path) -> Result<()> {
     let mut memory = memory::Memory::new();
 
     // Load ELF binary into memory
-    println!("Loading ELF binary: {}", binary_path.display());
     let entry_point = elf_loader::ElfLoader::load_elf(binary_path, &mut memory)?;
 
     // Set CPU program counter to entry point

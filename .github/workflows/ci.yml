@@ -15,10 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-    - name: Run tests
+    - name: Run unit tests
       run: cargo test --verbose
+    - name: Run integration tests
+      run: ./scripts/test.sh
 
   lint:
     name: Lint

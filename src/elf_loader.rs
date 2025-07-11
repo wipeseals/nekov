@@ -1,6 +1,6 @@
 /// ELF binary loading functionality
 use crate::{memory::Memory, EmulatorError, Result};
-use object::{Object, ObjectSection};
+use object::{Object, ObjectSegment};
 use std::fs;
 
 /// ELF loader for loading binaries into emulator memory
@@ -17,40 +17,27 @@ impl ElfLoader {
 
         let entry_point = obj_file.entry() as u32;
 
-        // Load sections into memory
-        for section in obj_file.sections() {
-            // Only load sections that are allocated in memory
-            let flags = section.flags();
-            let is_alloc = match flags {
-                object::SectionFlags::Elf { sh_flags } => sh_flags & (object::elf::SHF_ALLOC as u64) != 0,
-                _ => false,
-            };
-            
-            if !is_alloc {
+        // Load segments into memory (program headers)
+        for segment in obj_file.segments() {
+            let vaddr = segment.address() as u32;
+            let file_range = segment.file_range();
+            let file_size = file_range.1;
+
+            if file_size == 0 {
                 continue;
             }
 
-            let address = section.address() as u32;
-            let size = section.size();
+            // Get segment data
+            let segment_data = segment
+                .data()
+                .map_err(|_| EmulatorError::InvalidElfFormat)?;
 
-            if size == 0 {
-                continue;
-            }
-
-            // Get section data
-            let section_data = section.data().map_err(|_| EmulatorError::InvalidElfFormat)?;
-
-            // Load section into memory
+            // Load segment into memory
             memory
-                .load_data(address, section_data)
+                .load_data(vaddr, segment_data)
                 .map_err(|_| EmulatorError::MemoryAccessError)?;
 
-            println!(
-                "Loaded section '{}' at 0x{:08x} (size: {} bytes)",
-                section.name().unwrap_or("<unknown>"),
-                address,
-                size
-            );
+            println!("Loaded segment at 0x{vaddr:08x} (size: {file_size} bytes)");
         }
 
         Ok(entry_point)
@@ -67,7 +54,7 @@ mod tests {
     fn test_load_elf_file_not_found() {
         let mut memory = Memory::new();
         let non_existent_path = std::path::Path::new("non_existent.elf");
-        
+
         let result = ElfLoader::load_elf(non_existent_path, &mut memory);
         assert!(matches!(result, Err(EmulatorError::FileNotFound)));
     }
@@ -75,11 +62,11 @@ mod tests {
     #[test]
     fn test_load_elf_invalid_format() {
         let mut memory = Memory::new();
-        
+
         // Create a temporary invalid ELF file
         let mut temp_file = tempfile::NamedTempFile::new().unwrap();
         temp_file.write_all(b"not an elf file").unwrap();
-        
+
         let result = ElfLoader::load_elf(temp_file.path(), &mut memory);
         assert!(matches!(result, Err(EmulatorError::InvalidElfFormat)));
     }
