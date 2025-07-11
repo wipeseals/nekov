@@ -32,11 +32,15 @@ jobs:
       uses: actions/cache@v3
       id: cache-riscv-tests
       with:
-        path: riscv-tests-binaries
+        path: riscv-tests-binaries/share/riscv-tests/isa
         key: ${{ steps.cache-key.outputs.key }}
     - name: Build RISC-V tests
       if: steps.cache-riscv-tests.outputs.cache-hit != 'true'
       run: ./scripts/build_riscv_tests.sh
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Test RISC-V binaries with emulator
+      run: ./scripts/test.sh
 
   test:
     name: Test
@@ -51,7 +55,7 @@ jobs:
     - name: Restore RISC-V test binaries
       uses: actions/cache@v3
       with:
-        path: riscv-tests-binaries
+        path: riscv-tests-binaries/share/riscv-tests/isa
         key: ${{ needs.build-riscv-tests.outputs.cache-key }}
         fail-on-cache-miss: true
     - name: Run unit tests

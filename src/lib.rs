@@ -28,7 +28,15 @@ impl std::error::Error for EmulatorError {}
 pub type Result<T> = std::result::Result<T, EmulatorError>;
 
 /// Main entry point for running the emulator
-pub fn run_emulator(binary_path: &Path) -> Result<()> {
+pub fn run_emulator(binary_path: &Path) -> Result<(cpu::Cpu, memory::Memory)> {
+    run_emulator_with_limit(binary_path, Some(1000))
+}
+
+/// Run emulator with configurable instruction limit
+pub fn run_emulator_with_limit(
+    binary_path: &Path,
+    instruction_limit: Option<usize>,
+) -> Result<(cpu::Cpu, memory::Memory)> {
     // Check if file exists
     if !binary_path.exists() {
         return Err(EmulatorError::FileNotFound);
@@ -47,7 +55,8 @@ pub fn run_emulator(binary_path: &Path) -> Result<()> {
 
     // Run emulation with instruction limit for safety
     println!("Starting emulation...");
-    let executed_instructions = cpu.run(&mut memory, Some(1000))?;
+    let limit = instruction_limit.map(|l| l as u32);
+    let executed_instructions = cpu.run(&mut memory, limit)?;
     println!("Emulation completed. Executed {executed_instructions} instructions.");
 
     // Print final CPU state
@@ -67,7 +76,7 @@ pub fn run_emulator(binary_path: &Path) -> Result<()> {
         );
     }
 
-    Ok(())
+    Ok((cpu, memory))
 }
 
 #[cfg(test)]

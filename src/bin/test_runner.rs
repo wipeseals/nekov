@@ -48,8 +48,11 @@ fn main() {
 
         total_tests += 1;
 
-        // Run the emulator on this test
-        let output = Command::new(emulator_path).arg(&path).output();
+        // Run the emulator on this test with riscv-tests mode
+        let output = Command::new(emulator_path)
+            .arg("--riscv-tests")
+            .arg(&path)
+            .output();
 
         let (status, result_msg) = match output {
             Ok(output) => {
