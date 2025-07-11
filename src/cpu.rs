@@ -11,14 +11,25 @@ pub struct Cpu {
     pub registers: [u32; NUM_REGISTERS],
     /// Program counter
     pub pc: u32,
+    /// Control and Status Registers (CSRs)
+    /// For simplicity, we'll store only the most common ones
+    pub csrs: std::collections::HashMap<u16, u32>,
 }
 
 impl Cpu {
     /// Create a new CPU instance
     pub fn new() -> Self {
+        let mut csrs = std::collections::HashMap::new();
+        // Initialize commonly used CSRs
+        csrs.insert(0xF14, 0); // mhartid - hardware thread ID
+        csrs.insert(0x300, 0); // mstatus - machine status
+        csrs.insert(0x342, 0); // mcause - machine trap cause
+        csrs.insert(0x341, 0); // mepc - machine exception program counter
+        
         Self {
             registers: [0; NUM_REGISTERS],
             pc: 0,
+            csrs,
         }
     }
 
@@ -26,6 +37,12 @@ impl Cpu {
     pub fn reset(&mut self) {
         self.registers = [0; NUM_REGISTERS];
         self.pc = 0;
+        // Reset CSRs to default values
+        self.csrs.clear();
+        self.csrs.insert(0xF14, 0); // mhartid
+        self.csrs.insert(0x300, 0); // mstatus
+        self.csrs.insert(0x342, 0); // mcause
+        self.csrs.insert(0x341, 0); // mepc
     }
 
     /// Read a register value
@@ -45,6 +62,16 @@ impl Cpu {
             self.registers[reg] = value;
         }
         // x0 cannot be written, invalid registers are ignored
+    }
+
+    /// Read a CSR value
+    pub fn read_csr(&self, csr: u16) -> u32 {
+        self.csrs.get(&csr).copied().unwrap_or(0)
+    }
+
+    /// Write a CSR value
+    pub fn write_csr(&mut self, csr: u16, value: u32) {
+        self.csrs.insert(csr, value);
     }
 
     /// Execute a single instruction
@@ -107,6 +134,12 @@ impl Cpu {
             0x2F => {
                 // RV32A atomic instructions
                 self.execute_atomic(instruction, memory)
+            }
+            0x0F => {
+                // FENCE instruction (memory ordering)
+                // For our simple emulator, we'll treat it as a no-op
+                self.pc = self.pc.wrapping_add(4);
+                Ok(())
             }
             _ => {
                 // Unsupported instruction
@@ -768,21 +801,94 @@ impl Cpu {
         Ok(())
     }
 
-    /// Execute system instructions (ECALL, EBREAK)
+    /// Execute system instructions (ECALL, EBREAK, CSR operations)
     fn execute_system(&mut self, instruction: u32) -> Result<()> {
-        let funct12 = instruction >> 20;
+        let funct3 = (instruction >> 12) & 0x7;
+        let rd = ((instruction >> 7) & 0x1F) as usize;
+        let rs1 = ((instruction >> 15) & 0x1F) as usize;
+        let csr = ((instruction >> 20) & 0xFFF) as u16;
         
-        match funct12 {
-            0x000 => {
-                // ECALL - Environment call
-                // For now, we'll just halt execution
-                // In a real system, this would trigger a trap
-                return Err(EmulatorError::UnsupportedInstruction);
+        match funct3 {
+            0x0 => {
+                // ECALL/EBREAK/MRET
+                let funct12 = instruction >> 20;
+                match funct12 {
+                    0x000 => {
+                        // ECALL - Environment call
+                        // This terminates execution for riscv-tests
+                        return Err(EmulatorError::EcallTermination);
+                    }
+                    0x001 => {
+                        // EBREAK - Environment break
+                        return Err(EmulatorError::UnsupportedInstruction);
+                    }
+                    0x302 => {
+                        // MRET - Machine return
+                        // For our simple emulator, we'll just treat it as a no-op and continue
+                        // In a real implementation, this would restore machine-mode state
+                        self.pc = self.pc.wrapping_add(4);
+                        Ok(())
+                    }
+                    _ => return Err(EmulatorError::UnsupportedInstruction),
+                }
             }
-            0x001 => {
-                // EBREAK - Environment break
-                // For now, we'll just halt execution
-                return Err(EmulatorError::UnsupportedInstruction);
+            0x1 => {
+                // CSRRW - CSR Read/Write
+                let old_value = self.read_csr(csr);
+                let new_value = self.read_register(rs1);
+                self.write_csr(csr, new_value);
+                self.write_register(rd, old_value);
+                self.pc = self.pc.wrapping_add(4);
+                Ok(())
+            }
+            0x2 => {
+                // CSRRS - CSR Read and Set bits
+                let old_value = self.read_csr(csr);
+                let mask = self.read_register(rs1);
+                let new_value = old_value | mask;
+                self.write_csr(csr, new_value);
+                self.write_register(rd, old_value);
+                self.pc = self.pc.wrapping_add(4);
+                Ok(())
+            }
+            0x3 => {
+                // CSRRC - CSR Read and Clear bits  
+                let old_value = self.read_csr(csr);
+                let mask = self.read_register(rs1);
+                let new_value = old_value & !mask;
+                self.write_csr(csr, new_value);
+                self.write_register(rd, old_value);
+                self.pc = self.pc.wrapping_add(4);
+                Ok(())
+            }
+            0x5 => {
+                // CSRRWI - CSR Read/Write Immediate
+                let old_value = self.read_csr(csr);
+                let imm = rs1 as u32; // rs1 field contains immediate value
+                self.write_csr(csr, imm);
+                self.write_register(rd, old_value);
+                self.pc = self.pc.wrapping_add(4);
+                Ok(())
+            }
+            0x6 => {
+                // CSRRSI - CSR Read and Set bits Immediate
+                let old_value = self.read_csr(csr);
+                let imm = rs1 as u32; // rs1 field contains immediate value
+                let new_value = old_value | imm;
+                self.write_csr(csr, new_value);
+                self.write_register(rd, old_value);
+                self.pc = self.pc.wrapping_add(4);
+                Ok(())
+            }
+            0x7 => {
+                // CSRRCI - CSR Read and Clear bits Immediate
+                let old_value = self.read_csr(csr);
+                let imm = rs1 as u32; // rs1 field contains immediate value
+                let new_value = old_value & !imm;
+                self.write_csr(csr, new_value);
+                self.write_register(rd, old_value);
+                self.pc = self.pc.wrapping_add(4);
+                Ok(())
             }
             _ => return Err(EmulatorError::UnsupportedInstruction),
         }
@@ -930,6 +1036,11 @@ impl Cpu {
                 }
                 Err(EmulatorError::UnsupportedInstruction) => {
                     println!("Unsupported instruction at PC: 0x{:08x}", self.pc);
+                    break;
+                }
+                Err(EmulatorError::EcallTermination) => {
+                    // Normal termination via ECALL - this is expected in riscv-tests
+                    executed_instructions += 1;
                     break;
                 }
                 Err(e) => {
