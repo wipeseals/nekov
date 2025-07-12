@@ -36,7 +36,7 @@ impl Cpu {
         csrs.insert(0xC00, 0); // cycle - cycle counter
         csrs.insert(0xC01, 0); // time - time counter
         csrs.insert(0xC02, 0); // instret - instructions retired counter
-        
+
         Self {
             registers: [0; NUM_REGISTERS],
             pc: 0,
@@ -680,7 +680,7 @@ impl Cpu {
         // Reconstruct 12-bit signed immediate
         let imm = ((imm_11_5 << 5) | imm_4_0) as i32;
         let imm = if imm & 0x800 != 0 {
-            imm | 0xFFFFF000u32 as i32  // Sign extend
+            imm | 0xFFFFF000u32 as i32 // Sign extend
         } else {
             imm
         };
@@ -730,7 +730,7 @@ impl Cpu {
         // Reconstruct 13-bit signed branch offset (bit 0 is always 0)
         let imm = (imm_12 << 12) | (imm_11 << 11) | (imm_10_5 << 5) | (imm_4_1 << 1);
         let offset = if imm & 0x1000 != 0 {
-            (imm | 0xFFFFE000) as i32  // Sign extend
+            (imm | 0xFFFFE000) as i32 // Sign extend
         } else {
             imm as i32
         };
@@ -739,12 +739,12 @@ impl Cpu {
         let rs2_value = self.read_register(rs2);
 
         let branch_taken = match funct3 {
-            0x0 => rs1_value == rs2_value,  // BEQ
-            0x1 => rs1_value != rs2_value,  // BNE
+            0x0 => rs1_value == rs2_value,                   // BEQ
+            0x1 => rs1_value != rs2_value,                   // BNE
             0x4 => (rs1_value as i32) < (rs2_value as i32),  // BLT
             0x5 => (rs1_value as i32) >= (rs2_value as i32), // BGE
-            0x6 => rs1_value < rs2_value,   // BLTU
-            0x7 => rs1_value >= rs2_value,  // BGEU
+            0x6 => rs1_value < rs2_value,                    // BLTU
+            0x7 => rs1_value >= rs2_value,                   // BGEU
             _ => return Err(EmulatorError::UnsupportedInstruction),
         };
 
@@ -760,7 +760,7 @@ impl Cpu {
     /// Execute LUI instruction (Load Upper Immediate)
     fn execute_lui(&mut self, instruction: u32) -> Result<()> {
         let rd = ((instruction >> 7) & 0x1F) as usize;
-        let imm = instruction & 0xFFFFF000;  // Upper 20 bits
+        let imm = instruction & 0xFFFFF000; // Upper 20 bits
 
         if rd >= NUM_REGISTERS {
             return Err(EmulatorError::UnsupportedInstruction);
@@ -774,7 +774,7 @@ impl Cpu {
     /// Execute AUIPC instruction (Add Upper Immediate to PC)
     fn execute_auipc(&mut self, instruction: u32) -> Result<()> {
         let rd = ((instruction >> 7) & 0x1F) as usize;
-        let imm = instruction & 0xFFFFF000;  // Upper 20 bits
+        let imm = instruction & 0xFFFFF000; // Upper 20 bits
 
         if rd >= NUM_REGISTERS {
             return Err(EmulatorError::UnsupportedInstruction);
@@ -801,14 +801,14 @@ impl Cpu {
         // Reconstruct 21-bit signed jump offset (bit 0 is always 0)
         let imm = (imm_20 << 20) | (imm_19_12 << 12) | (imm_11 << 11) | (imm_10_1 << 1);
         let offset = if imm & 0x100000 != 0 {
-            (imm | 0xFFE00000) as i32  // Sign extend
+            (imm | 0xFFE00000) as i32 // Sign extend
         } else {
             imm as i32
         };
 
         // Store return address (PC + 4)
         self.write_register(rd, self.pc.wrapping_add(4));
-        
+
         // Jump to target
         self.pc = self.pc.wrapping_add(offset as u32);
         Ok(())
@@ -830,7 +830,7 @@ impl Cpu {
 
         // Store return address (PC + 4)
         self.write_register(rd, self.pc.wrapping_add(4));
-        
+
         // Jump to target
         self.pc = target;
         Ok(())
@@ -842,7 +842,7 @@ impl Cpu {
         let rd = ((instruction >> 7) & 0x1F) as usize;
         let rs1 = ((instruction >> 15) & 0x1F) as usize;
         let csr = ((instruction >> 20) & 0xFFF) as u16;
-        
+
         match funct3 {
             0x0 => {
                 // ECALL/EBREAK/MRET
@@ -851,11 +851,11 @@ impl Cpu {
                     0x000 => {
                         // ECALL - Environment call
                         // This terminates execution for riscv-tests
-                        return Err(EmulatorError::EcallTermination);
+                        Err(EmulatorError::EcallTermination)
                     }
                     0x001 => {
                         // EBREAK - Environment break
-                        return Err(EmulatorError::UnsupportedInstruction);
+                        Err(EmulatorError::UnsupportedInstruction)
                     }
                     0x302 => {
                         // MRET - Machine return
@@ -864,13 +864,14 @@ impl Cpu {
                         self.pc = self.pc.wrapping_add(4);
                         Ok(())
                     }
-                    _ => return Err(EmulatorError::UnsupportedInstruction),
+                    _ => Err(EmulatorError::UnsupportedInstruction),
                 }
             }
             0x1 => {
                 // CSRRW - CSR Read/Write
                 let old_value = self.read_csr(csr);
-                if rd != 0 {  // Only read old value if rd is non-zero
+                if rd != 0 {
+                    // Only read old value if rd is non-zero
                     self.write_register(rd, old_value);
                 }
                 let new_value = self.read_register(rs1);
@@ -881,7 +882,8 @@ impl Cpu {
             0x2 => {
                 // CSRRS - CSR Read and Set bits
                 let old_value = self.read_csr(csr);
-                if rs1 != 0 {  // Only write if rs1 is non-zero
+                if rs1 != 0 {
+                    // Only write if rs1 is non-zero
                     let mask = self.read_register(rs1);
                     let new_value = old_value | mask;
                     self.write_csr(csr, new_value);
@@ -891,9 +893,10 @@ impl Cpu {
                 Ok(())
             }
             0x3 => {
-                // CSRRC - CSR Read and Clear bits  
+                // CSRRC - CSR Read and Clear bits
                 let old_value = self.read_csr(csr);
-                if rs1 != 0 {  // Only write if rs1 is non-zero
+                if rs1 != 0 {
+                    // Only write if rs1 is non-zero
                     let mask = self.read_register(rs1);
                     let new_value = old_value & !mask;
                     self.write_csr(csr, new_value);
@@ -905,7 +908,8 @@ impl Cpu {
             0x5 => {
                 // CSRRWI - CSR Read/Write Immediate
                 let old_value = self.read_csr(csr);
-                if rd != 0 {  // Only read old value if rd is non-zero
+                if rd != 0 {
+                    // Only read old value if rd is non-zero
                     self.write_register(rd, old_value);
                 }
                 let imm = rs1 as u32; // rs1 field contains immediate value (zero-extended)
@@ -917,7 +921,8 @@ impl Cpu {
                 // CSRRSI - CSR Read and Set bits Immediate
                 let old_value = self.read_csr(csr);
                 let imm = rs1 as u32; // rs1 field contains immediate value (zero-extended)
-                if imm != 0 {  // Only write if immediate is non-zero
+                if imm != 0 {
+                    // Only write if immediate is non-zero
                     let new_value = old_value | imm;
                     self.write_csr(csr, new_value);
                 }
@@ -929,7 +934,8 @@ impl Cpu {
                 // CSRRCI - CSR Read and Clear bits Immediate
                 let old_value = self.read_csr(csr);
                 let imm = rs1 as u32; // rs1 field contains immediate value (zero-extended)
-                if imm != 0 {  // Only write if immediate is non-zero
+                if imm != 0 {
+                    // Only write if immediate is non-zero
                     let new_value = old_value & !imm;
                     self.write_csr(csr, new_value);
                 }
@@ -937,7 +943,7 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(4);
                 Ok(())
             }
-            _ => return Err(EmulatorError::UnsupportedInstruction),
+            _ => Err(EmulatorError::UnsupportedInstruction),
         }
     }
 
@@ -956,7 +962,7 @@ impl Cpu {
         }
 
         let addr = self.read_register(rs1);
-        
+
         // For this implementation, we'll ignore the aq/rl bits for simplicity
         let _ = (aq, rl);
 
@@ -1361,7 +1367,7 @@ mod tests {
         cpu.write_register(4, 0x80000000); // Large number
         cpu.write_register(5, 2);
         cpu.execute_m_type(6, 4, 5, 0x1).unwrap(); // MULH
-        // Should get upper 32 bits of signed multiplication
+                                                   // Should get upper 32 bits of signed multiplication
 
         // Test DIV
         cpu.write_register(7, 42);
@@ -1403,7 +1409,7 @@ mod tests {
         cpu.write_register(0, base_addr); // This won't actually change x0, but for the test we set the base
         cpu.execute_load(lw_instruction, &mut memory).unwrap();
         // Since x0 is always 0, we need to manually set up the test differently
-        
+
         // Better test: use a non-zero base register
         cpu.write_register(2, base_addr);
         let lw_instruction = (0 << 20) | (2 << 15) | (0x2 << 12) | (1 << 7) | 0x03; // lw x1, 0(x2)
@@ -1449,13 +1455,27 @@ mod tests {
         let imm_11 = 0u32;
         let imm_10_5 = 0u32;
         let imm_4_1 = 0b0100u32; // 4 in binary
-        let beq_instruction = (imm_12 << 31) | (imm_10_5 << 25) | (2 << 20) | (1 << 15) | (0x0 << 12) | (imm_4_1 << 8) | (imm_11 << 7) | 0x63;
+        let beq_instruction = (imm_12 << 31)
+            | (imm_10_5 << 25)
+            | (2 << 20)
+            | (1 << 15)
+            | (0x0 << 12)
+            | (imm_4_1 << 8)
+            | (imm_11 << 7)
+            | 0x63;
         cpu.execute_branch(beq_instruction).unwrap();
         assert_eq!(cpu.pc, 1008); // 1000 + 8
 
         // Test BNE (Branch if Not Equal) - should not branch since registers are equal
         cpu.pc = 1000;
-        let bne_instruction = (imm_12 << 31) | (imm_10_5 << 25) | (2 << 20) | (1 << 15) | (0x1 << 12) | (imm_4_1 << 8) | (imm_11 << 7) | 0x63;
+        let bne_instruction = (imm_12 << 31)
+            | (imm_10_5 << 25)
+            | (2 << 20)
+            | (1 << 15)
+            | (0x1 << 12)
+            | (imm_4_1 << 8)
+            | (imm_11 << 7)
+            | 0x63;
         cpu.execute_branch(bne_instruction).unwrap();
         assert_eq!(cpu.pc, 1004); // 1000 + 4 (no branch, just increment)
 
@@ -1463,7 +1483,14 @@ mod tests {
         cpu.pc = 1000;
         cpu.write_register(3, 5);
         // blt x3, x1, 8 (5 < 10, should branch)
-        let blt_instruction = (imm_12 << 31) | (imm_10_5 << 25) | (1 << 20) | (3 << 15) | (0x4 << 12) | (imm_4_1 << 8) | (imm_11 << 7) | 0x63;
+        let blt_instruction = (imm_12 << 31)
+            | (imm_10_5 << 25)
+            | (1 << 20)
+            | (3 << 15)
+            | (0x4 << 12)
+            | (imm_4_1 << 8)
+            | (imm_11 << 7)
+            | 0x63;
         cpu.execute_branch(blt_instruction).unwrap();
         assert_eq!(cpu.pc, 1008); // 1000 + 8 (branch taken)
     }
@@ -1498,7 +1525,12 @@ mod tests {
         let imm_19_12 = 0u32;
         let imm_11 = 0u32;
         let imm_10_1 = 0b0000000100u32; // 8 >> 1 = 4
-        let jal_instruction = (imm_20 << 31) | (imm_10_1 << 21) | (imm_11 << 20) | (imm_19_12 << 12) | (1 << 7) | 0x6F;
+        let jal_instruction = (imm_20 << 31)
+            | (imm_10_1 << 21)
+            | (imm_11 << 20)
+            | (imm_19_12 << 12)
+            | (1 << 7)
+            | 0x6F;
         cpu.execute_jal(jal_instruction).unwrap();
         assert_eq!(cpu.read_register(1), 1004); // Return address (PC + 4)
         assert_eq!(cpu.pc, 1008); // Jump target (1000 + 8)
@@ -1536,14 +1568,17 @@ mod tests {
 
         // Test AMOSWAP.W
         cpu.write_register(5, 300);
-        let amoswap_instruction = (0x01 << 27) | (5 << 20) | (1 << 15) | (0x2 << 12) | (6 << 7) | 0x2F;
-        cpu.execute_atomic(amoswap_instruction, &mut memory).unwrap();
+        let amoswap_instruction =
+            (0x01 << 27) | (5 << 20) | (1 << 15) | (0x2 << 12) | (6 << 7) | 0x2F;
+        cpu.execute_atomic(amoswap_instruction, &mut memory)
+            .unwrap();
         assert_eq!(cpu.read_register(6), 200); // Old value
         assert_eq!(memory.read_word(base_addr).unwrap(), 300); // New value
 
         // Test AMOADD.W
         cpu.write_register(7, 50);
-        let amoadd_instruction = (0x00 << 27) | (7 << 20) | (1 << 15) | (0x2 << 12) | (8 << 7) | 0x2F;
+        let amoadd_instruction =
+            (0x00 << 27) | (7 << 20) | (1 << 15) | (0x2 << 12) | (8 << 7) | 0x2F;
         cpu.execute_atomic(amoadd_instruction, &mut memory).unwrap();
         assert_eq!(cpu.read_register(8), 300); // Old value
         assert_eq!(memory.read_word(base_addr).unwrap(), 350); // 300 + 50
@@ -1560,7 +1595,7 @@ mod tests {
         // Test CSRRW - should work as expected
         cpu.write_register(1, 0xABCDEF00);
         cpu.csrs.insert(0x301, 0x11111111);
-        
+
         // CSRRW x2, 0x301, x1 - read 0x301 into x2, write x1 into 0x301
         let csrrw = (0x301 << 20) | (1 << 15) | (1 << 12) | (2 << 7) | 0x73;
         assert!(cpu.execute_system(csrrw).is_ok());
@@ -1587,21 +1622,21 @@ mod tests {
         let mut cpu = Cpu::new();
         let mut memory = Memory::new();
         let base_addr = memory.base_address();
-        
+
         cpu.pc = base_addr;
-        
+
         // Test FENCE instruction (funct3=0)
         let fence_instruction = (0x0 << 12) | 0x0F;
         memory.write_word(cpu.pc, fence_instruction).unwrap();
-        
+
         let old_pc = cpu.pc;
         cpu.step(&mut memory).unwrap();
         assert_eq!(cpu.pc, old_pc + 4); // Should advance PC
-        
+
         // Test FENCE.I instruction (funct3=1)
         let fence_i_instruction = (0x1 << 12) | 0x0F;
         memory.write_word(cpu.pc, fence_i_instruction).unwrap();
-        
+
         let old_pc = cpu.pc;
         cpu.step(&mut memory).unwrap();
         assert_eq!(cpu.pc, old_pc + 4); // Should advance PC

@@ -48,7 +48,7 @@ jobs:
     - name: Test RISC-V binaries with emulator
       run: ./scripts/test.sh
     - name: Upload test results as artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()  # Upload artifacts even if tests fail
       with:
         name: riscv-test-results-build-job
@@ -76,7 +76,7 @@ jobs:
     - name: Run integration tests
       run: ./scripts/test.sh
     - name: Upload test results as artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()  # Upload artifacts even if tests fail
       with:
         name: riscv-test-results

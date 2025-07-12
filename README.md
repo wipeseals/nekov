@@ -129,11 +129,37 @@ This project follows a TDD (Test-Driven Development) approach with:
 
 ## Contributing
 
+### Pull Request Requirements
+
+Before submitting a PR, ensure the following requirements are met:
+
+1. **Linting**: Code must pass all linting checks
+   ```bash
+   cargo clippy -- -D warnings
+   ```
+
+2. **Formatting**: Code must be properly formatted
+   ```bash
+   cargo fmt --check
+   ```
+
+3. **Build**: Code must build successfully  
+   ```bash
+   cargo build
+   ```
+
+4. **CI**: All CI checks must pass (except for known failing tests that are documented)
+
+These are mandatory requirements that will be checked before any PR review.
+
+### Development Process
+
 1. Fork the repository
 2. Create a feature branch
 3. Add tests for new functionality  
 4. Ensure all tests pass: `cargo test && ./scripts/test.sh`
-5. Submit a pull request
+5. Run lint, format, and build checks (see requirements above)
+6. Submit a pull request
 
 ## License
 

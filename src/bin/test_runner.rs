@@ -38,7 +38,7 @@ fn main() {
     };
 
     let mut entries_vec: Vec<_> = entries.filter_map(|e| e.ok()).collect();
-    entries_vec.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+    entries_vec.sort_by_key(|a| a.file_name());
 
     for entry in entries_vec {
         let path = entry.path();
@@ -87,18 +87,25 @@ fn main() {
     if json_output {
         // Output JSON format for machine processing
         println!("{{");
-        println!("  \"total_tests\": {},", total_tests);
-        println!("  \"passed_tests\": {},", passed_tests);
+        println!("  \"total_tests\": {total_tests},");
+        println!("  \"passed_tests\": {passed_tests},");
         println!("  \"failed_tests\": {},", total_tests - passed_tests);
-        println!("  \"pass_rate\": {:.2},", if total_tests > 0 { passed_tests as f64 / total_tests as f64 * 100.0 } else { 0.0 });
+        println!(
+            "  \"pass_rate\": {:.2},",
+            if total_tests > 0 {
+                passed_tests as f64 / total_tests as f64 * 100.0
+            } else {
+                0.0
+            }
+        );
         println!("  \"results\": [");
         for (i, (test_name, status, msg)) in test_results.iter().enumerate() {
             let comma = if i < test_results.len() - 1 { "," } else { "" };
             println!("    {{");
-            println!("      \"test\": \"{}\",", test_name);
-            println!("      \"status\": \"{}\",", status);
+            println!("      \"test\": \"{test_name}\",");
+            println!("      \"status\": \"{status}\",");
             println!("      \"message\": \"{}\"", msg.replace('"', "\\\""));
-            println!("    }}{}", comma);
+            println!("    }}{comma}");
         }
         println!("  ]");
         println!("}}");
@@ -121,19 +128,29 @@ fn main() {
         }
 
         println!();
-        println!("Summary: {passed_tests}/{total_tests} tests passed ({:.1}% pass rate)", 
-                if total_tests > 0 { passed_tests as f64 / total_tests as f64 * 100.0 } else { 0.0 });
+        println!(
+            "Summary: {passed_tests}/{total_tests} tests passed ({:.1}% pass rate)",
+            if total_tests > 0 {
+                passed_tests as f64 / total_tests as f64 * 100.0
+            } else {
+                0.0
+            }
+        );
 
         if passed_tests == total_tests {
             println!("🎉 All tests passed!");
         } else {
-            println!("❌ {}/{} tests failed", total_tests - passed_tests, total_tests);
-            
+            println!(
+                "❌ {}/{} tests failed",
+                total_tests - passed_tests,
+                total_tests
+            );
+
             // List failed tests for quick reference
             println!("\nFailed tests:");
             for (test_name, status, _) in &test_results {
                 if *status == "FAIL" {
-                    println!("  - {}", test_name);
+                    println!("  - {test_name}");
                 }
             }
         }
