@@ -98,67 +98,116 @@ impl Cpu {
 
     /// Execute a single instruction
     pub fn step(&mut self, memory: &mut Memory) -> Result<()> {
+        self.step_with_verbosity(memory, 0)
+    }
+
+    /// Execute a single instruction with verbose output
+    pub fn step_with_verbosity(&mut self, memory: &mut Memory, verbosity: u8) -> Result<()> {
         // Fetch instruction from memory
         let instruction = memory.read_word(self.pc)?;
 
+        if verbosity >= 3 {
+            println!("  Fetched instruction: 0x{:08x}", instruction);
+        }
+
         // Decode and execute instruction
-        self.decode_and_execute(instruction, memory)?;
+        self.decode_and_execute_with_verbosity(instruction, memory, verbosity)?;
 
         Ok(())
     }
 
-    /// Decode and execute an instruction
-    fn decode_and_execute(&mut self, instruction: u32, memory: &mut Memory) -> Result<()> {
+    /// Decode and execute an instruction with verbose output
+    fn decode_and_execute_with_verbosity(&mut self, instruction: u32, memory: &mut Memory, verbosity: u8) -> Result<()> {
         // Extract opcode (bits 0-6)
         let opcode = instruction & 0x7F;
+
+        if verbosity >= 3 {
+            println!("  Opcode: 0x{:02x}", opcode);
+        }
 
         match opcode {
             0x13 => {
                 // I-type instruction (ADDI, SLTI, XORI, etc.)
+                if verbosity >= 3 {
+                    println!("  I-type instruction");
+                }
                 self.execute_i_type(instruction)
             }
             0x33 => {
                 // R-type instruction (ADD, SUB, XOR, etc.)
+                if verbosity >= 3 {
+                    println!("  R-type instruction");
+                }
                 self.execute_r_type(instruction)
             }
             0x03 => {
                 // Load instructions (LB, LH, LW, LBU, LHU)
+                if verbosity >= 3 {
+                    println!("  Load instruction");
+                }
                 self.execute_load(instruction, memory)
             }
             0x23 => {
                 // Store instructions (SB, SH, SW)
+                if verbosity >= 3 {
+                    println!("  Store instruction");
+                }
                 self.execute_store(instruction, memory)
             }
             0x63 => {
                 // Branch instructions (BEQ, BNE, BLT, BGE, BLTU, BGEU)
+                if verbosity >= 3 {
+                    println!("  Branch instruction");
+                }
                 self.execute_branch(instruction)
             }
             0x37 => {
                 // LUI instruction
+                if verbosity >= 3 {
+                    println!("  LUI instruction");
+                }
                 self.execute_lui(instruction)
             }
             0x17 => {
                 // AUIPC instruction
+                if verbosity >= 3 {
+                    println!("  AUIPC instruction");
+                }
                 self.execute_auipc(instruction)
             }
             0x6F => {
                 // JAL instruction
+                if verbosity >= 3 {
+                    println!("  JAL instruction");
+                }
                 self.execute_jal(instruction)
             }
             0x67 => {
                 // JALR instruction
+                if verbosity >= 3 {
+                    println!("  JALR instruction");
+                }
                 self.execute_jalr(instruction)
             }
             0x73 => {
                 // System instructions (ECALL, EBREAK)
+                if verbosity >= 3 {
+                    println!("  System instruction");
+                }
                 self.execute_system(instruction)
             }
             0x2F => {
                 // RV32A atomic instructions
+                if verbosity >= 3 {
+                    println!("  Atomic instruction");
+                }
                 self.execute_atomic(instruction, memory)
             }
             0x0F => {
                 // FENCE instruction family (memory ordering)
+                if verbosity >= 3 {
+                    println!("  FENCE instruction");
+                }
                 let funct3 = (instruction >> 12) & 0x7;
                 match funct3 {
                     0x0 => {
@@ -1058,35 +1107,84 @@ impl Cpu {
 
     /// Run the CPU until it encounters an error or reaches a halt condition
     pub fn run(&mut self, memory: &mut Memory, max_instructions: Option<u32>) -> Result<u32> {
+        self.run_with_verbosity(memory, max_instructions, 0)
+    }
+
+    /// Run the CPU with verbose output until it encounters an error or reaches a halt condition
+    pub fn run_with_verbosity(&mut self, memory: &mut Memory, max_instructions: Option<u32>, verbosity: u8) -> Result<u32> {
         let mut executed_instructions = 0;
+
+        if verbosity >= 3 {
+            println!("=== Starting CPU execution (verbose level {}) ===", verbosity);
+            if let Some(limit) = max_instructions {
+                println!("Instruction limit: {}", limit);
+            }
+            println!();
+        }
 
         loop {
             // Check instruction limit
             if let Some(max) = max_instructions {
                 if executed_instructions >= max {
+                    if verbosity >= 2 {
+                        println!("Instruction limit ({}) reached", max);
+                    }
                     break;
                 }
             }
 
-            // Execute one instruction
-            match self.step(memory) {
+            // Verbose output for cycle-by-cycle execution
+            if verbosity >= 2 {
+                println!("Cycle {}: PC=0x{:08x}", executed_instructions + 1, self.pc);
+                if verbosity >= 3 {
+                    // Show instruction being executed
+                    if let Ok(instruction) = memory.read_word(self.pc) {
+                        println!("  Instruction: 0x{:08x}", instruction);
+                        // Show some key registers before execution
+                        println!("  Before: x1=0x{:08x} x2=0x{:08x} x3=0x{:08x} x10=0x{:08x}", 
+                                self.read_register(1), self.read_register(2), 
+                                self.read_register(3), self.read_register(10));
+                    }
+                }
+            }
+
+            // Execute one instruction  
+            match self.step_with_verbosity(memory, verbosity) {
                 Ok(()) => {
                     executed_instructions += 1;
+                    if verbosity >= 3 {
+                        println!("  After:  x1=0x{:08x} x2=0x{:08x} x3=0x{:08x} x10=0x{:08x}", 
+                                self.read_register(1), self.read_register(2), 
+                                self.read_register(3), self.read_register(10));
+                        println!();
+                    }
                 }
                 Err(EmulatorError::UnsupportedInstruction) => {
-                    println!("Unsupported instruction at PC: 0x{:08x}", self.pc);
+                    if verbosity >= 1 {
+                        println!("Unsupported instruction at PC: 0x{:08x}", self.pc);
+                    }
                     break;
                 }
                 Err(EmulatorError::EcallTermination) => {
                     // Normal termination via ECALL - this is expected in riscv-tests
                     executed_instructions += 1;
+                    if verbosity >= 2 {
+                        println!("ECALL termination at PC: 0x{:08x}", self.pc);
+                    }
                     break;
                 }
                 Err(e) => {
-                    println!("Error at PC: 0x{:08x}: {e}", self.pc);
+                    if verbosity >= 1 {
+                        println!("Error at PC: 0x{:08x}: {e}", self.pc);
+                    }
                     return Err(e);
                 }
             }
+        }
+
+        if verbosity >= 3 {
+            println!("=== CPU execution completed ===");
+            println!("Total instructions executed: {}", executed_instructions);
         }
 
         Ok(executed_instructions)
