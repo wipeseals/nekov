@@ -1548,4 +1548,62 @@ mod tests {
         assert_eq!(cpu.read_register(8), 300); // Old value
         assert_eq!(memory.read_word(base_addr).unwrap(), 350); // 300 + 50
     }
+
+    #[test]
+    fn test_csr_instructions() {
+        let mut cpu = Cpu::new();
+
+        // Test basic CSR read/write
+        cpu.write_csr(0x300, 0x12345678); // mstatus
+        assert_eq!(cpu.read_csr(0x300), 0x12345678);
+
+        // Test CSRRW - should work as expected
+        cpu.write_register(1, 0xABCDEF00);
+        cpu.csrs.insert(0x301, 0x11111111);
+        
+        // CSRRW x2, 0x301, x1 - read 0x301 into x2, write x1 into 0x301
+        let csrrw = (0x301 << 20) | (1 << 15) | (1 << 12) | (2 << 7) | 0x73;
+        assert!(cpu.execute_system(csrrw).is_ok());
+        assert_eq!(cpu.read_register(2), 0x11111111); // Old value of CSR
+        assert_eq!(cpu.read_csr(0x301), 0xABCDEF00); // New value written
+
+        // Test CSRRS with rs1=0 (should not write)
+        let old_csr = cpu.read_csr(0x301);
+        let csrrs_no_write = (0x301 << 20) | (0 << 15) | (2 << 12) | (3 << 7) | 0x73;
+        assert!(cpu.execute_system(csrrs_no_write).is_ok());
+        assert_eq!(cpu.read_csr(0x301), old_csr); // Should be unchanged
+        assert_eq!(cpu.read_register(3), old_csr); // Should have read the value
+
+        // Test CSRRS with rs1!=0 (should write)
+        cpu.write_register(4, 0x0000F000);
+        let csrrs_write = (0x301 << 20) | (4 << 15) | (2 << 12) | (5 << 7) | 0x73;
+        assert!(cpu.execute_system(csrrs_write).is_ok());
+        assert_eq!(cpu.read_register(5), old_csr); // Should have read old value
+        assert_eq!(cpu.read_csr(0x301), old_csr | 0x0000F000); // Should have set bits
+    }
+
+    #[test]
+    fn test_fence_instructions() {
+        let mut cpu = Cpu::new();
+        let mut memory = Memory::new();
+        let base_addr = memory.base_address();
+        
+        cpu.pc = base_addr;
+        
+        // Test FENCE instruction (funct3=0)
+        let fence_instruction = (0x0 << 12) | 0x0F;
+        memory.write_word(cpu.pc, fence_instruction).unwrap();
+        
+        let old_pc = cpu.pc;
+        cpu.step(&mut memory).unwrap();
+        assert_eq!(cpu.pc, old_pc + 4); // Should advance PC
+        
+        // Test FENCE.I instruction (funct3=1)
+        let fence_i_instruction = (0x1 << 12) | 0x0F;
+        memory.write_word(cpu.pc, fence_i_instruction).unwrap();
+        
+        let old_pc = cpu.pc;
+        cpu.step(&mut memory).unwrap();
+        assert_eq!(cpu.pc, old_pc + 4); // Should advance PC
+    }
 }
