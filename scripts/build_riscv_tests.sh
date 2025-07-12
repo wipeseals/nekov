@@ -32,9 +32,18 @@ print_status() {
     esac
 }
 
+# Initialize and update all submodules
+print_status "INFO" "Initializing and updating submodules..."
+cd "$PROJECT_DIR"
+if ! git submodule update --init --recursive; then
+    print_status "FAIL" "Failed to initialize submodules"
+    exit 1
+fi
+print_status "PASS" "Submodules initialized successfully"
+
 # Check if RISC-V toolchain is available
-if ! command -v riscv64-unknown-elf-gcc &> /dev/null && ! command -v riscv32-unknown-elf-gcc &> /dev/null; then
-    print_status "FAIL" "RISC-V toolchain not found. Please install gcc-riscv64-unknown-elf"
+if ! command -v riscv64-unknown-elf-gcc &> /dev/null && ! command -v riscv64-none-elf-gcc &> /dev/null && ! command -v riscv32-unknown-elf-gcc &> /dev/null; then
+    print_status "FAIL" "RISC-V toolchain not found. Please install gcc-riscv64-unknown-elf or gcc-riscv64-none-elf"
     exit 1
 fi
 
@@ -42,6 +51,9 @@ fi
 if command -v riscv64-unknown-elf-gcc &> /dev/null; then
     RISCV_PREFIX="riscv64-unknown-elf-"
     print_status "INFO" "Using riscv64-unknown-elf toolchain"
+elif command -v riscv64-none-elf-gcc &> /dev/null; then
+    RISCV_PREFIX="riscv64-none-elf-"
+    print_status "INFO" "Using riscv64-none-elf toolchain"
 elif command -v riscv32-unknown-elf-gcc &> /dev/null; then
     RISCV_PREFIX="riscv32-unknown-elf-"
     print_status "INFO" "Using riscv32-unknown-elf toolchain"
