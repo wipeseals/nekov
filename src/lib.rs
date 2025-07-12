@@ -39,6 +39,15 @@ pub fn run_emulator_with_limit(
     binary_path: &Path,
     instruction_limit: Option<usize>,
 ) -> Result<(cpu::Cpu, memory::Memory)> {
+    run_emulator_with_limit_and_verbosity(binary_path, instruction_limit, 0)
+}
+
+/// Run emulator with configurable instruction limit and verbosity
+pub fn run_emulator_with_limit_and_verbosity(
+    binary_path: &Path,
+    instruction_limit: Option<usize>,
+    verbosity: u8,
+) -> Result<(cpu::Cpu, memory::Memory)> {
     // Check if file exists
     if !binary_path.exists() {
         return Err(EmulatorError::FileNotFound);
@@ -53,29 +62,59 @@ pub fn run_emulator_with_limit(
 
     // Set CPU program counter to entry point
     cpu.pc = entry_point;
-    println!("Entry point: 0x{entry_point:08x}");
+    if verbosity >= 1 {
+        println!("Entry point: 0x{entry_point:08x}");
+    }
 
     // Run emulation with instruction limit for safety
-    println!("Starting emulation...");
+    if verbosity >= 1 {
+        println!("Starting emulation...");
+    }
     let limit = instruction_limit.map(|l| l as u32);
-    let executed_instructions = cpu.run(&mut memory, limit)?;
-    println!("Emulation completed. Executed {executed_instructions} instructions.");
+    let executed_instructions = cpu.run_with_verbosity(&mut memory, limit, verbosity)?;
+    if verbosity >= 1 {
+        println!("Emulation completed. Executed {executed_instructions} instructions.");
+    }
 
-    // Print final CPU state
-    println!("Final PC: 0x{:08x}", cpu.pc);
-    println!("Registers:");
-    for i in 0..8 {
-        println!(
-            "x{}: 0x{:08x}  x{}: 0x{:08x}  x{}: 0x{:08x}  x{}: 0x{:08x}",
-            i,
-            cpu.read_register(i),
-            i + 8,
-            cpu.read_register(i + 8),
-            i + 16,
-            cpu.read_register(i + 16),
-            i + 24,
-            cpu.read_register(i + 24)
-        );
+    // Print final CPU state if verbose
+    if verbosity >= 2 {
+        println!();
+        println!("=== Final CPU State ===");
+        println!("Final PC: 0x{:08x}", cpu.pc);
+        println!("Registers:");
+        for i in 0..8 {
+            println!(
+                "x{}: 0x{:08x}  x{}: 0x{:08x}  x{}: 0x{:08x}  x{}: 0x{:08x}",
+                i,
+                cpu.read_register(i),
+                i + 8,
+                cpu.read_register(i + 8),
+                i + 16,
+                cpu.read_register(i + 16),
+                i + 24,
+                cpu.read_register(i + 24)
+            );
+        }
+    } else if verbosity == 0 {
+        // Keep the old behavior for non-verbose mode
+        println!("Entry point: 0x{entry_point:08x}");
+        println!("Starting emulation...");
+        println!("Emulation completed. Executed {executed_instructions} instructions.");
+        println!("Final PC: 0x{:08x}", cpu.pc);
+        println!("Registers:");
+        for i in 0..8 {
+            println!(
+                "x{}: 0x{:08x}  x{}: 0x{:08x}  x{}: 0x{:08x}  x{}: 0x{:08x}",
+                i,
+                cpu.read_register(i),
+                i + 8,
+                cpu.read_register(i + 8),
+                i + 16,
+                cpu.read_register(i + 16),
+                i + 24,
+                cpu.read_register(i + 24)
+            );
+        }
     }
 
     Ok((cpu, memory))

@@ -4,14 +4,31 @@ use std::process::{exit, Command};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 3 || args.len() > 4 {
-        eprintln!("Usage: test_runner <emulator_path> <tests_dir> [--json]");
+    if args.len() < 3 {
+        eprintln!("Usage: test_runner <emulator_path> <tests_dir> [--json] [-v|-vv|-vvv]");
         exit(1);
     }
 
     let emulator_path = &args[1];
     let tests_dir = &args[2];
-    let json_output = args.len() == 4 && args[3] == "--json";
+
+    let mut json_output = false;
+    let mut verbose_flag = None;
+
+    // Parse remaining arguments
+    for arg in &args[3..] {
+        match arg.as_str() {
+            "--json" => json_output = true,
+            "-v" => verbose_flag = Some("-v"),
+            "-vv" => verbose_flag = Some("-vv"),
+            "-vvv" => verbose_flag = Some("-vvv"),
+            _ => {
+                eprintln!("Unknown argument: {arg}");
+                eprintln!("Usage: test_runner <emulator_path> <tests_dir> [--json] [-v|-vv|-vvv]");
+                exit(1);
+            }
+        }
+    }
 
     let mut test_results = Vec::new();
     let mut total_tests = 0;
@@ -56,10 +73,15 @@ fn main() {
         total_tests += 1;
 
         // Run the emulator on this test with riscv-tests mode
-        let output = Command::new(emulator_path)
-            .arg("--riscv-tests")
-            .arg(&path)
-            .output();
+        let mut cmd = Command::new(emulator_path);
+        cmd.arg("--riscv-tests").arg(&path);
+
+        // Add verbose flag if specified
+        if let Some(verbose) = verbose_flag {
+            cmd.arg(verbose);
+        }
+
+        let output = cmd.output();
 
         let (status, result_msg) = match output {
             Ok(output) => {

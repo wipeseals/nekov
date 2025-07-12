@@ -85,10 +85,15 @@ cd "$PROJECT_DIR"
 # Create logs directory for CI artifacts
 mkdir -p logs
 
+# Determine verbose flag - use -v if CI environment detected
+VERBOSE_FLAG=""
+if [ "${CI:-false}" = "true" ] || [ "${GITHUB_ACTIONS:-false}" = "true" ]; then
+    VERBOSE_FLAG="-v"
+    print_status "INFO" "CI environment detected, running with verbose output (-v)"
+fi
+
 # Run tests and capture output for CI artifacts
-# Use a different approach to properly capture exit code
-mkdir -p logs
-cargo run --bin test_runner "$PROJECT_DIR/target/release/nekov" "$TESTS_ISA_DIR" > logs/riscv-tests-results.log
+cargo run --bin test_runner "$PROJECT_DIR/target/release/nekov" "$TESTS_ISA_DIR" $VERBOSE_FLAG > logs/riscv-tests-results.log
 test_exit_code=$?
 
 # Also create a JSON summary for easier parsing  
@@ -96,9 +101,6 @@ cargo run --bin test_runner "$PROJECT_DIR/target/release/nekov" "$TESTS_ISA_DIR"
 
 # Show the results on console by displaying the log
 cat logs/riscv-tests-results.log
-
-# Also create a JSON summary for easier parsing
-cargo run --bin test_runner "$PROJECT_DIR/target/release/nekov" "$TESTS_ISA_DIR" --json > logs/riscv-tests-results.json 2>/dev/null || true
 
 print_status "INFO" "Test results saved to logs/ directory"
 

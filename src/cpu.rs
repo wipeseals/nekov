@@ -1,6 +1,36 @@
 /// RISC-V CPU implementation
 use crate::{memory::Memory, EmulatorError, Result};
 
+/// Macro for verbose logging at different levels
+macro_rules! verbose_log {
+    ($verbosity:expr, $level:expr, $($arg:tt)*) => {
+        if $verbosity >= $level {
+            println!($($arg)*);
+        }
+    };
+}
+
+/// Macro for debug-level verbose logging (level 3)
+macro_rules! debug_log {
+    ($verbosity:expr, $($arg:tt)*) => {
+        verbose_log!($verbosity, 3, $($arg)*);
+    };
+}
+
+/// Macro for info-level verbose logging (level 2)
+macro_rules! info_log {
+    ($verbosity:expr, $($arg:tt)*) => {
+        verbose_log!($verbosity, 2, $($arg)*);
+    };
+}
+
+/// Macro for basic verbose logging (level 1)
+macro_rules! basic_log {
+    ($verbosity:expr, $($arg:tt)*) => {
+        verbose_log!($verbosity, 1, $($arg)*);
+    };
+}
+
 /// RISC-V register count (x0-x31)
 const NUM_REGISTERS: usize = 32;
 
@@ -98,67 +128,93 @@ impl Cpu {
 
     /// Execute a single instruction
     pub fn step(&mut self, memory: &mut Memory) -> Result<()> {
+        self.step_with_verbosity(memory, 0)
+    }
+
+    /// Execute a single instruction with verbose output
+    pub fn step_with_verbosity(&mut self, memory: &mut Memory, verbosity: u8) -> Result<()> {
         // Fetch instruction from memory
         let instruction = memory.read_word(self.pc)?;
 
+        debug_log!(verbosity, "  Fetched instruction: 0x{instruction:08x}");
+
         // Decode and execute instruction
-        self.decode_and_execute(instruction, memory)?;
+        self.decode_and_execute_with_verbosity(instruction, memory, verbosity)?;
 
         Ok(())
     }
 
-    /// Decode and execute an instruction
-    fn decode_and_execute(&mut self, instruction: u32, memory: &mut Memory) -> Result<()> {
+    /// Decode and execute an instruction with verbose output
+    fn decode_and_execute_with_verbosity(
+        &mut self,
+        instruction: u32,
+        memory: &mut Memory,
+        verbosity: u8,
+    ) -> Result<()> {
         // Extract opcode (bits 0-6)
         let opcode = instruction & 0x7F;
+
+        debug_log!(verbosity, "  Opcode: 0x{opcode:02x}");
 
         match opcode {
             0x13 => {
                 // I-type instruction (ADDI, SLTI, XORI, etc.)
+                debug_log!(verbosity, "  I-type instruction");
                 self.execute_i_type(instruction)
             }
             0x33 => {
                 // R-type instruction (ADD, SUB, XOR, etc.)
+                debug_log!(verbosity, "  R-type instruction");
                 self.execute_r_type(instruction)
             }
             0x03 => {
                 // Load instructions (LB, LH, LW, LBU, LHU)
+                debug_log!(verbosity, "  Load instruction");
                 self.execute_load(instruction, memory)
             }
             0x23 => {
                 // Store instructions (SB, SH, SW)
+                debug_log!(verbosity, "  Store instruction");
                 self.execute_store(instruction, memory)
             }
             0x63 => {
                 // Branch instructions (BEQ, BNE, BLT, BGE, BLTU, BGEU)
+                debug_log!(verbosity, "  Branch instruction");
                 self.execute_branch(instruction)
             }
             0x37 => {
                 // LUI instruction
+                debug_log!(verbosity, "  LUI instruction");
                 self.execute_lui(instruction)
             }
             0x17 => {
                 // AUIPC instruction
+                debug_log!(verbosity, "  AUIPC instruction");
                 self.execute_auipc(instruction)
             }
             0x6F => {
                 // JAL instruction
+                debug_log!(verbosity, "  JAL instruction");
                 self.execute_jal(instruction)
             }
             0x67 => {
                 // JALR instruction
+                debug_log!(verbosity, "  JALR instruction");
                 self.execute_jalr(instruction)
             }
             0x73 => {
                 // System instructions (ECALL, EBREAK)
+                debug_log!(verbosity, "  System instruction");
                 self.execute_system(instruction)
             }
             0x2F => {
                 // RV32A atomic instructions
+                debug_log!(verbosity, "  Atomic instruction");
                 self.execute_atomic(instruction, memory)
             }
             0x0F => {
                 // FENCE instruction family (memory ordering)
+                debug_log!(verbosity, "  FENCE instruction");
                 let funct3 = (instruction >> 12) & 0x7;
                 match funct3 {
                     0x0 => {
@@ -1058,36 +1114,99 @@ impl Cpu {
 
     /// Run the CPU until it encounters an error or reaches a halt condition
     pub fn run(&mut self, memory: &mut Memory, max_instructions: Option<u32>) -> Result<u32> {
+        self.run_with_verbosity(memory, max_instructions, 0)
+    }
+
+    /// Run the CPU with verbose output until it encounters an error or reaches a halt condition
+    pub fn run_with_verbosity(
+        &mut self,
+        memory: &mut Memory,
+        max_instructions: Option<u32>,
+        verbosity: u8,
+    ) -> Result<u32> {
         let mut executed_instructions = 0;
+
+        debug_log!(
+            verbosity,
+            "=== Starting CPU execution (verbose level {verbosity}) ==="
+        );
+        if let Some(limit) = max_instructions {
+            debug_log!(verbosity, "Instruction limit: {limit}");
+        }
+        debug_log!(verbosity, "");
 
         loop {
             // Check instruction limit
             if let Some(max) = max_instructions {
                 if executed_instructions >= max {
+                    info_log!(verbosity, "Instruction limit ({max}) reached");
                     break;
                 }
             }
 
+            // Verbose output for cycle-by-cycle execution
+            info_log!(
+                verbosity,
+                "Cycle {}: PC=0x{:08x}",
+                executed_instructions + 1,
+                self.pc
+            );
+            if verbosity >= 3 {
+                // Show instruction being executed
+                if let Ok(instruction) = memory.read_word(self.pc) {
+                    debug_log!(verbosity, "  Instruction: 0x{instruction:08x}");
+                    // Show some key registers before execution
+                    debug_log!(
+                        verbosity,
+                        "  Before: x1=0x{:08x} x2=0x{:08x} x3=0x{:08x} x10=0x{:08x}",
+                        self.read_register(1),
+                        self.read_register(2),
+                        self.read_register(3),
+                        self.read_register(10)
+                    );
+                }
+            }
+
             // Execute one instruction
-            match self.step(memory) {
+            match self.step_with_verbosity(memory, verbosity) {
                 Ok(()) => {
                     executed_instructions += 1;
+                    debug_log!(
+                        verbosity,
+                        "  After:  x1=0x{:08x} x2=0x{:08x} x3=0x{:08x} x10=0x{:08x}",
+                        self.read_register(1),
+                        self.read_register(2),
+                        self.read_register(3),
+                        self.read_register(10)
+                    );
+                    debug_log!(verbosity, "");
                 }
                 Err(EmulatorError::UnsupportedInstruction) => {
-                    println!("Unsupported instruction at PC: 0x{:08x}", self.pc);
+                    basic_log!(
+                        verbosity,
+                        "Unsupported instruction at PC: 0x{:08x}",
+                        self.pc
+                    );
                     break;
                 }
                 Err(EmulatorError::EcallTermination) => {
                     // Normal termination via ECALL - this is expected in riscv-tests
                     executed_instructions += 1;
+                    info_log!(verbosity, "ECALL termination at PC: 0x{:08x}", self.pc);
                     break;
                 }
                 Err(e) => {
-                    println!("Error at PC: 0x{:08x}: {e}", self.pc);
+                    basic_log!(verbosity, "Error at PC: 0x{:08x}: {e}", self.pc);
                     return Err(e);
                 }
             }
         }
+
+        debug_log!(verbosity, "=== CPU execution completed ===");
+        debug_log!(
+            verbosity,
+            "Total instructions executed: {executed_instructions}"
+        );
 
         Ok(executed_instructions)
     }
