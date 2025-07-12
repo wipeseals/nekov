@@ -86,8 +86,16 @@ cd "$PROJECT_DIR"
 mkdir -p logs
 
 # Run tests and capture output for CI artifacts
-cargo run --bin test_runner "$PROJECT_DIR/target/release/nekov" "$TESTS_ISA_DIR" | tee logs/riscv-tests-results.log
+# Use a different approach to properly capture exit code
+mkdir -p logs
+cargo run --bin test_runner "$PROJECT_DIR/target/release/nekov" "$TESTS_ISA_DIR" > logs/riscv-tests-results.log
 test_exit_code=$?
+
+# Also create a JSON summary for easier parsing  
+cargo run --bin test_runner "$PROJECT_DIR/target/release/nekov" "$TESTS_ISA_DIR" --json > logs/riscv-tests-results.json 2>/dev/null || true
+
+# Show the results on console by displaying the log
+cat logs/riscv-tests-results.log
 
 # Also create a JSON summary for easier parsing
 cargo run --bin test_runner "$PROJECT_DIR/target/release/nekov" "$TESTS_ISA_DIR" --json > logs/riscv-tests-results.json 2>/dev/null || true

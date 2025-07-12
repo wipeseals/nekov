@@ -624,13 +624,8 @@ impl Cpu {
                 self.write_register(rd, value);
             }
             0x1 => {
-                // LH - Load halfword (sign-extended)
-                if addr % 2 != 0 {
-                    return Err(EmulatorError::MemoryAccessError);
-                }
-                let byte0 = memory.read_byte(addr)? as u32;
-                let byte1 = memory.read_byte(addr + 1)? as u32;
-                let value = (byte1 << 8) | byte0;
+                // LH - Load halfword (sign-extended, supports misaligned access)
+                let value = memory.read_halfword(addr)? as u32;
                 let sign_extended = if value & 0x8000 != 0 {
                     value | 0xFFFF0000
                 } else {
@@ -649,13 +644,8 @@ impl Cpu {
                 self.write_register(rd, value);
             }
             0x5 => {
-                // LHU - Load halfword unsigned
-                if addr % 2 != 0 {
-                    return Err(EmulatorError::MemoryAccessError);
-                }
-                let byte0 = memory.read_byte(addr)? as u32;
-                let byte1 = memory.read_byte(addr + 1)? as u32;
-                let value = (byte1 << 8) | byte0;
+                // LHU - Load halfword unsigned (supports misaligned access)
+                let value = memory.read_halfword(addr)? as u32;
                 self.write_register(rd, value);
             }
             _ => return Err(EmulatorError::UnsupportedInstruction),
@@ -695,12 +685,8 @@ impl Cpu {
                 memory.write_byte(addr, value as u8)?;
             }
             0x1 => {
-                // SH - Store halfword
-                if addr % 2 != 0 {
-                    return Err(EmulatorError::MemoryAccessError);
-                }
-                memory.write_byte(addr, (value & 0xFF) as u8)?;
-                memory.write_byte(addr + 1, ((value >> 8) & 0xFF) as u8)?;
+                // SH - Store halfword (supports misaligned access)
+                memory.write_halfword(addr, value as u16)?;
             }
             0x2 => {
                 // SW - Store word
