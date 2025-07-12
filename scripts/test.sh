@@ -82,7 +82,16 @@ print_status "INFO" "Running RISC-V tests..."
 echo
 
 cd "$PROJECT_DIR"
-cargo run --bin test_runner "$PROJECT_DIR/target/release/nekov" "$TESTS_ISA_DIR"
+# Create logs directory for CI artifacts
+mkdir -p logs
+
+# Run tests and capture output for CI artifacts
+cargo run --bin test_runner "$PROJECT_DIR/target/release/nekov" "$TESTS_ISA_DIR" | tee logs/riscv-tests-results.log
 test_exit_code=$?
+
+# Also create a JSON summary for easier parsing
+cargo run --bin test_runner "$PROJECT_DIR/target/release/nekov" "$TESTS_ISA_DIR" --json > logs/riscv-tests-results.json 2>/dev/null || true
+
+print_status "INFO" "Test results saved to logs/ directory"
 
 exit $test_exit_code

@@ -1,19 +1,23 @@
-/// Simple test program to verify rv32ima instruction implementation
-/// This creates a series of instructions manually and runs them through the emulator
+/// Integration test for RV32IMA instruction implementation
+/// This test exercises all major instruction categories through manual instruction creation
 use nekov::{cpu::Cpu, memory::Memory};
 
-fn main() {
-    println!("🐈 Nekov RV32IMA Instruction Test");
-    println!("==================================");
+fn run_instructions(cpu: &mut Cpu, memory: &mut Memory, instructions: &[u32]) -> Result<(), Box<dyn std::error::Error>> {
+    for &instruction in instructions {
+        memory.write_word(cpu.pc, instruction)?;
+        cpu.step(memory)?;
+    }
+    Ok(())
+}
 
+#[test]
+fn test_i_type_instructions() {
     let mut cpu = Cpu::new();
     let mut memory = Memory::new();
     let base_addr = memory.base_address();
     
     cpu.pc = base_addr;
     
-    // Test 1: Basic I-type instructions (ADDI, XORI, ORI, ANDI)
-    println!("\n📝 Test 1: I-type instructions");
     let instructions = vec![
         // addi x1, x0, 42        ; x1 = 42
         (42 << 20) | (0 << 15) | (0 << 12) | (1 << 7) | 0x13,
@@ -31,10 +35,20 @@ fn main() {
     assert_eq!(cpu.read_register(2), 37);  // 42 ^ 15
     assert_eq!(cpu.read_register(3), 170); // 42 | 128
     assert_eq!(cpu.read_register(4), 170); // 170 & 255
-    println!("✅ I-type instructions working correctly");
+}
+
+#[test]
+fn test_r_type_arithmetic() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+    let base_addr = memory.base_address();
     
-    // Test 2: R-type arithmetic instructions
-    println!("\n📝 Test 2: R-type arithmetic");
+    cpu.pc = base_addr;
+    
+    // Set up initial values
+    cpu.write_register(1, 42);
+    cpu.write_register(2, 37);
+    
     let instructions = vec![
         // add x5, x1, x2         ; x5 = 42 + 37 = 79
         (0 << 25) | (2 << 20) | (1 << 15) | (0 << 12) | (5 << 7) | 0x33,
@@ -49,12 +63,17 @@ fn main() {
     assert_eq!(cpu.read_register(5), 79);
     assert_eq!(cpu.read_register(6), 37);
     assert_eq!(cpu.read_register(7), 1344); // 42 << 5
-    println!("✅ R-type arithmetic working correctly");
+}
+
+#[test] 
+fn test_load_store_instructions() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+    let base_addr = memory.base_address();
     
-    // Test 3: Load/Store instructions
-    println!("\n📝 Test 3: Load/Store instructions");
+    cpu.pc = base_addr;
     
-    // First, store some data
+    // Set up registers
     cpu.write_register(8, base_addr + 100); // Base address in x8
     cpu.write_register(9, 0xDEADBEEF);      // Value to store in x9
     
@@ -71,10 +90,13 @@ fn main() {
     
     assert_eq!(cpu.read_register(10), 0xDEADBEEF);
     assert_eq!(cpu.read_register(11), 0xFFFFFFEF); // Sign-extended byte (0xEF)
-    println!("✅ Load/Store instructions working correctly");
-    
-    // Test 4: Branch instructions
-    println!("\n📝 Test 4: Branch instructions");
+}
+
+#[test]
+fn test_branch_instructions() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+    let base_addr = memory.base_address();
     
     cpu.pc = base_addr + 200;
     cpu.write_register(12, 10);
@@ -88,10 +110,13 @@ fn main() {
     let old_pc = cpu.pc;
     cpu.step(&mut memory).unwrap();
     assert_eq!(cpu.pc, old_pc + 8); // Should have branched
-    println!("✅ Branch instructions working correctly");
-    
-    // Test 5: RV32M multiplication
-    println!("\n📝 Test 5: RV32M multiplication");
+}
+
+#[test]
+fn test_multiplication_instructions() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+    let base_addr = memory.base_address();
     
     cpu.pc = base_addr + 300;
     cpu.write_register(14, 6);
@@ -108,10 +133,15 @@ fn main() {
     
     assert_eq!(cpu.read_register(16), 42);
     assert_eq!(cpu.read_register(17), 7);
-    println!("✅ RV32M multiplication working correctly");
+}
+
+#[test]
+fn test_upper_immediate_instructions() {
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+    let base_addr = memory.base_address();
     
-    // Test 6: Upper immediate instructions
-    println!("\n📝 Test 6: Upper immediate instructions");
+    cpu.pc = base_addr + 400;
     
     let instructions = vec![
         // lui x18, 0x12345       ; x18 = 0x12345000
@@ -125,27 +155,43 @@ fn main() {
     
     assert_eq!(cpu.read_register(18), 0x12345000);
     assert_eq!(cpu.read_register(19), pc_before_auipc + 0x1000000);
-    println!("✅ Upper immediate instructions working correctly");
-    
-    println!("\n🎉 All instruction tests passed! RV32IMA implementation is working correctly.");
-    
-    // Print final register state
-    println!("\n📊 Final Register State:");
-    for i in 0..8 {
-        println!(
-            "x{:2}: 0x{:08x}  x{:2}: 0x{:08x}  x{:2}: 0x{:08x}  x{:2}: 0x{:08x}",
-            i, cpu.read_register(i),
-            i + 8, cpu.read_register(i + 8),
-            i + 16, cpu.read_register(i + 16),
-            i + 24, cpu.read_register(i + 24)
-        );
-    }
 }
 
-fn run_instructions(cpu: &mut Cpu, memory: &mut Memory, instructions: &[u32]) -> Result<(), Box<dyn std::error::Error>> {
-    for &instruction in instructions {
-        memory.write_word(cpu.pc, instruction)?;
-        cpu.step(memory)?;
-    }
-    Ok(())
+#[test]
+fn test_comprehensive_rv32ima_sequence() {
+    // This test exercises a comprehensive sequence that tests multiple instruction types
+    let mut cpu = Cpu::new();
+    let mut memory = Memory::new();
+    let base_addr = memory.base_address();
+    
+    cpu.pc = base_addr;
+    
+    // Complex sequence: Load immediate -> Square it -> Store to memory -> Load back
+    let instructions = vec![
+        // addi x1, x0, 42        ; Load immediate value 42
+        (42 << 20) | (0 << 15) | (0 << 12) | (1 << 7) | 0x13,
+        // mul x2, x1, x1         ; Square the value (42 * 42 = 1764)
+        (1 << 25) | (1 << 20) | (1 << 15) | (0 << 12) | (2 << 7) | 0x33,
+        // addi x3, x0, 1000      ; Load base address offset
+        (1000 << 20) | (0 << 15) | (0 << 12) | (3 << 7) | 0x13,
+        // add x4, x3, x0         ; Copy to address register (just to test ADD)
+        (0 << 25) | (0 << 20) | (3 << 15) | (0 << 12) | (4 << 7) | 0x33,
+        // sw x2, 0(x4)           ; Store squared value to memory
+        (0 << 25) | (2 << 20) | (4 << 15) | (2 << 12) | (0 << 7) | 0x23,
+        // lw x5, 0(x4)           ; Load back from memory
+        (0 << 20) | (4 << 15) | (2 << 12) | (5 << 7) | 0x03,
+    ];
+    
+    run_instructions(&mut cpu, &mut memory, &instructions).unwrap();
+    
+    // Verify all steps worked correctly
+    assert_eq!(cpu.read_register(1), 42);           // Original value
+    assert_eq!(cpu.read_register(2), 1764);         // 42²
+    assert_eq!(cpu.read_register(3), 1000);         // Address offset 
+    assert_eq!(cpu.read_register(4), 1000);         // Copied address
+    assert_eq!(cpu.read_register(5), 1764);         // Value loaded from memory
+    
+    // Verify memory contains the correct value
+    let stored_value = memory.read_word(1000).unwrap();
+    assert_eq!(stored_value, 1764);
 }
