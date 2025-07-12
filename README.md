@@ -8,7 +8,7 @@ A RISC-V emulator in Rust, probably written by a cat. 🐈
 
 - **RV32IMA Instruction Set Support**: Complete implementation of RISC-V base integer (RV32I), multiplication (RV32M), and atomic (RV32A) instruction sets
 - **40+ Instructions Implemented**: All major RISC-V instruction types including arithmetic, logical, memory, branch, jump, and atomic operations
-- **ELF Binary Loading**: Parses and loads ELF binaries into emulator memory  
+- **ELF Binary Loading**: Parses and loads ELF binaries into emulator memory
 - **Memory Management**: HashMap-based memory with bounds checking and little-endian support
 - **Register File**: 32 general-purpose registers (x0-x31) with x0 hardwired to zero
 - **Instruction Execution**: Fetch-decode-execute cycle with instruction limits for safety
@@ -25,6 +25,64 @@ cargo build --release
 ```bash
 # Run an ELF binary through the emulator
 ./target/release/nekov path/to/program.elf
+```
+
+### Example Usage
+
+```bash
+./target/debug/nekov ./riscv-tests-binaries/share/riscv-tests/isa/rv32ui-p-addi -vvv --riscv-tests
+Nekov RISC-V Emulator
+Loading ELF binary: ./riscv-tests-binaries/share/riscv-tests/isa/rv32ui-p-addi
+RISC-V tests mode enabled
+Verbose output level: 3
+Loaded segment at 0x80000000 (size: 1148 bytes)
+Loaded segment at 0x80001000 (size: 72 bytes)
+Entry point: 0x80000000
+Starting emulation...
+=== Starting CPU execution (verbose level 3) ===
+
+Cycle 1: PC=0x80000000
+  Instruction: 0x0500006f
+  Before: x1=0x00000000 x2=0x00000000 x3=0x00000000 x10=0x00000000
+  Fetched instruction: 0x0500006f
+  Opcode: 0x6f
+  JAL instruction
+  After:  x1=0x00000000 x2=0x00000000 x3=0x00000000 x10=0x00000000
+
+(snipped)
+
+Cycle 277: PC=0x80000440
+  Instruction: 0x00000073
+  Before: x1=0x00000021 x2=0x00000000 x3=0x00000001 x10=0x00000000
+  Fetched instruction: 0x00000073
+  Opcode: 0x73
+  System instruction
+ECALL termination at PC: 0x80000440
+=== CPU execution completed ===
+Total instructions executed: 277
+Emulation completed. Executed 277 instructions.
+
+=== Final CPU State ===
+Final PC: 0x80000440
+Registers:
+x0: 0x00000000  x8: 0x00000000  x16: 0x00000000  x24: 0x00000000
+x1: 0x00000021  x9: 0x00000000  x17: 0x0000005d  x25: 0x00000000
+x2: 0x00000000  x10: 0x00000000  x18: 0x00000000  x26: 0x00000000
+x3: 0x00000001  x11: 0x00000018  x19: 0x00000000  x27: 0x00000000
+x4: 0x00000002  x12: 0x00000000  x20: 0x00000000  x28: 0x00000000
+x5: 0x00000002  x13: 0x7fffffff  x21: 0x00000000  x29: 0x00000000
+x6: 0x00000016  x14: 0x00000016  x22: 0x00000000  x30: 0x00000000
+x7: 0x00000000  x15: 0x00000000  x23: 0x00000000  x31: 0x00000000
+=== RISC-V Test Result Analysis ===
+Register state at termination:
+  gp (x3)  = 0x00000001 (TESTNUM)
+  a0 (x10) = 0x00000000 (exit code)
+  a7 (x17) = 0x0000005d (syscall number)
+
+Test result determination:
+  ✓ System call number is 93 (exit syscall)
+  ✓ TESTNUM=1 and exit code=0 → PASS
+RISC-V test PASSED
 ```
 
 ## Testing
@@ -54,41 +112,45 @@ cargo run --bin instruction_test
 ### Supported Instructions
 
 #### RV32I Base Integer Instructions
-| Category | Instructions | Status |
-|----------|--------------|---------|
-| **I-type Arithmetic** | ADDI, SLTI, SLTIU, ANDI, ORI, XORI | ✅ |
-| **I-type Shifts** | SLLI, SRLI, SRAI | ✅ |
-| **R-type Arithmetic** | ADD, SUB, SLT, SLTU | ✅ |
-| **R-type Logical** | AND, OR, XOR | ✅ |
-| **R-type Shifts** | SLL, SRL, SRA | ✅ |
-| **Load** | LB, LH, LW, LBU, LHU | ✅ |
-| **Store** | SB, SH, SW | ✅ |
-| **Branch** | BEQ, BNE, BLT, BGE, BLTU, BGEU | ✅ |
-| **Jump** | JAL, JALR | ✅ |
-| **Upper Immediate** | LUI, AUIPC | ✅ |
-| **System** | ECALL, EBREAK | ✅ |
 
-#### RV32M Multiplication Extension  
-| Category | Instructions | Status |
-|----------|--------------|---------|
-| **Multiplication** | MUL, MULH, MULHSU, MULHU | ✅ |
-| **Division** | DIV, DIVU, REM, REMU | ✅ |
+| Category              | Instructions                       | Status |
+| --------------------- | ---------------------------------- | ------ |
+| **I-type Arithmetic** | ADDI, SLTI, SLTIU, ANDI, ORI, XORI | ✅     |
+| **I-type Shifts**     | SLLI, SRLI, SRAI                   | ✅     |
+| **R-type Arithmetic** | ADD, SUB, SLT, SLTU                | ✅     |
+| **R-type Logical**    | AND, OR, XOR                       | ✅     |
+| **R-type Shifts**     | SLL, SRL, SRA                      | ✅     |
+| **Load**              | LB, LH, LW, LBU, LHU               | ✅     |
+| **Store**             | SB, SH, SW                         | ✅     |
+| **Branch**            | BEQ, BNE, BLT, BGE, BLTU, BGEU     | ✅     |
+| **Jump**              | JAL, JALR                          | ✅     |
+| **Upper Immediate**   | LUI, AUIPC                         | ✅     |
+| **System**            | ECALL, EBREAK                      | ✅     |
+
+#### RV32M Multiplication Extension
+
+| Category           | Instructions             | Status |
+| ------------------ | ------------------------ | ------ |
+| **Multiplication** | MUL, MULH, MULHSU, MULHU | ✅     |
+| **Division**       | DIV, DIVU, REM, REMU     | ✅     |
 
 #### RV32A Atomic Extension
-| Category | Instructions | Status |
-|----------|--------------|---------|
-| **Load/Store Reserved** | LR.W, SC.W | ✅ |
-| **Atomic Memory Ops** | AMOSWAP.W, AMOADD.W, AMOXOR.W | ✅ |
-| **Atomic Logical** | AMOAND.W, AMOOR.W | ✅ |
-| **Atomic Min/Max** | AMOMIN.W, AMOMAX.W, AMOMINU.W, AMOMAXU.W | ✅ |
+
+| Category                | Instructions                             | Status |
+| ----------------------- | ---------------------------------------- | ------ |
+| **Load/Store Reserved** | LR.W, SC.W                               | ✅     |
+| **Atomic Memory Ops**   | AMOSWAP.W, AMOADD.W, AMOXOR.W            | ✅     |
+| **Atomic Logical**      | AMOAND.W, AMOOR.W                        | ✅     |
+| **Atomic Min/Max**      | AMOMIN.W, AMOMAX.W, AMOMINU.W, AMOMAXU.W | ✅     |
 
 **Total: 50+ instructions implemented covering RV32IMA**
 
 ### Test Results
 
 The emulator passes all 27 unit tests including:
+
 - **I-type instructions**: ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
-- **R-type instructions**: ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND  
+- **R-type instructions**: ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND
 - **M-type instructions**: MUL, MULH, DIV, DIVU, REM, REMU with proper overflow handling
 - **Load/Store operations**: All memory access patterns with proper alignment
 - **Branch instructions**: Conditional branching with correct offset calculation
@@ -100,6 +162,7 @@ The emulator passes all 27 unit tests including:
 ## Development
 
 This project follows a TDD (Test-Driven Development) approach with:
+
 - Unit tests for all components
 - Integration tests using real instruction sequences
 - CI pipeline ensuring code quality
@@ -119,8 +182,9 @@ This project follows a TDD (Test-Driven Development) approach with:
 ```
 
 **Instruction Pipeline:**
+
 1. **Fetch**: Read 32-bit instruction from memory at PC
-2. **Decode**: Parse instruction format (R/I/S/B/U/J) and extract fields  
+2. **Decode**: Parse instruction format (R/I/S/B/U/J) and extract fields
 3. **Execute**: Perform operation based on instruction type:
    - **Arithmetic**: ALU operations with proper overflow handling
    - **Memory**: Load/store with alignment checks and endianness
@@ -134,16 +198,19 @@ This project follows a TDD (Test-Driven Development) approach with:
 Before submitting a PR, ensure the following requirements are met:
 
 1. **Linting**: Code must pass all linting checks
+
    ```bash
    cargo clippy -- -D warnings
    ```
 
 2. **Formatting**: Code must be properly formatted
+
    ```bash
    cargo fmt --check
    ```
 
-3. **Build**: Code must build successfully  
+3. **Build**: Code must build successfully
+
    ```bash
    cargo build
    ```
@@ -156,7 +223,7 @@ These are mandatory requirements that will be checked before any PR review.
 
 1. Fork the repository
 2. Create a feature branch
-3. Add tests for new functionality  
+3. Add tests for new functionality
 4. Ensure all tests pass: `cargo test && ./scripts/test.sh`
 5. Run lint, format, and build checks (see requirements above)
 6. Submit a pull request
