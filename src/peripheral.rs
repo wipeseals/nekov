@@ -117,3 +117,50 @@ impl Default for PeripheralManager {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_console_peripheral() {
+        let mut console = ConsolePeriph::new(0x10000000);
+        
+        // Test base address and size
+        assert_eq!(console.base_address(), 0x10000000);
+        assert_eq!(console.size(), 0x1000);
+        assert!(console.contains_address(0x10000000));
+        assert!(console.contains_address(0x10000FFF));
+        assert!(!console.contains_address(0x0FFFFFFF));
+        assert!(!console.contains_address(0x10001000));
+        
+        // Test read (should return 0)
+        assert_eq!(console.read(0).unwrap(), 0);
+        
+        // Test write (should succeed)
+        assert!(console.write(0, b'H' as u32).is_ok());
+        assert!(console.write(0, b'i' as u32).is_ok());
+    }
+
+    #[test]
+    fn test_peripheral_manager() {
+        let mut manager = PeripheralManager::new();
+        
+        // Add console peripheral
+        let console = ConsolePeriph::new(0x10000000);
+        manager.add_peripheral(Box::new(console));
+        
+        // Test address detection
+        assert!(manager.is_peripheral_address(0x10000000));
+        assert!(manager.is_peripheral_address(0x10000500));
+        assert!(!manager.is_peripheral_address(0x20000000));
+        
+        // Test read/write
+        assert_eq!(manager.read(0x10000000).unwrap(), 0);
+        assert!(manager.write(0x10000000, b'A' as u32).is_ok());
+        
+        // Test non-peripheral address (should not fail)
+        assert_eq!(manager.read(0x20000000).unwrap(), 0);
+        assert!(manager.write(0x20000000, 0x12345678).is_ok());
+    }
+}

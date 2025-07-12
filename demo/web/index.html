@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Nekov RISC-V Emulator - Conway's Game of Life Demo</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #569cd6;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #9cdcfe;
+            margin: 5px 0;
+        }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .left-panel {
+            flex: 1;
+            min-width: 300px;
+        }
+        
+        .right-panel {
+            flex: 2;
+            min-width: 400px;
+        }
+        
+        .section {
+            background-color: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .section h3 {
+            margin-top: 0;
+            color: #569cd6;
+            border-bottom: 1px solid #3e3e42;
+            padding-bottom: 5px;
+        }
+        
+        button {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px 5px 5px 0;
+            font-family: inherit;
+        }
+        
+        button:hover {
+            background-color: #1177bb;
+        }
+        
+        button:disabled {
+            background-color: #3e3e42;
+            cursor: not-allowed;
+        }
+        
+        #console {
+            background-color: #0c0c0c;
+            color: #cccccc;
+            padding: 10px;
+            border-radius: 3px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            border: 1px solid #3e3e42;
+        }
+        
+        .status {
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin: 5px 0;
+            font-weight: bold;
+        }
+        
+        .status.ready { background-color: #106b04; }
+        .status.running { background-color: #b8860b; }
+        .status.stopped { background-color: #a80000; }
+        
+        .register-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            font-size: 11px;
+        }
+        
+        .register {
+            background-color: #1e1e1e;
+            padding: 3px 5px;
+            border-radius: 2px;
+            border: 1px solid #3e3e42;
+        }
+        
+        .register-name {
+            color: #9cdcfe;
+            font-weight: bold;
+        }
+        
+        .register-value {
+            color: #b5cea8;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #ffcc02;
+            padding: 20px;
+        }
+        
+        .error {
+            color: #f14c4c;
+            background-color: #5a1d1d;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+        }
+        
+        .file-input {
+            margin: 10px 0;
+        }
+        
+        .file-input input[type="file"] {
+            background-color: #3e3e42;
+            color: #d4d4d4;
+            border: 1px solid #3e3e42;
+            padding: 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🐈 Nekov RISC-V Emulator</h1>
+        <p>A RISC-V emulator in Rust, running in your browser via WebAssembly</p>
+        <p>Featuring Conway's Game of Life demo</p>
+    </div>
+
+    <div id="loading" class="loading">
+        <h3>Loading RISC-V Emulator...</h3>
+        <p>Initializing WebAssembly module...</p>
+    </div>
+
+    <div id="main-content" style="display: none;">
+        <div class="container">
+            <div class="left-panel">
+                <div class="section">
+                    <h3>Controls</h3>
+                    <div class="status" id="status">Ready</div>
+                    
+                    <button id="load-demo" onclick="loadDemo()">Load Life Game Demo</button>
+                    <button id="run-btn" onclick="runProgram()" disabled>Run Program</button>
+                    <button id="step-btn" onclick="stepProgram()" disabled>Step</button>
+                    <button id="reset-btn" onclick="resetEmulator()">Reset</button>
+                    
+                    <div class="file-input">
+                        <label for="binary-file">Load Binary:</label>
+                        <input type="file" id="binary-file" accept=".bin,.elf" onchange="loadBinaryFile(event)">
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>CPU State</h3>
+                    <div><strong>PC:</strong> <span id="pc-value">0x00000000</span></div>
+                    <div><strong>Instructions:</strong> <span id="inst-count">0</span></div>
+                    
+                    <h4>Registers</h4>
+                    <div class="register-grid" id="registers">
+                        <!-- Registers will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="section">
+                    <h3>Console Output</h3>
+                    <div id="console"></div>
+                    <button onclick="clearConsole()">Clear Console</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="error-container"></div>
+
+    </script>
+
+    <script src="demo-programs.js"></script>
+    <script type="module">
+        let wasm = null;
+        let emulator = null;
+        let isRunning = false;
+        let instructionCount = 0;
+
+        // Console output handling
+        const consoleElement = document.getElementById('console');
+        const originalConsoleLog = console.log;
+        
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            const message = args.join(' ') + '\n';
+            consoleElement.textContent += message;
+            consoleElement.scrollTop = consoleElement.scrollHeight;
+        };
+
+        // Initialize the emulator
+        async function init() {
+            try {
+                const module = await import('./pkg/nekov.js');
+                await module.default();
+                wasm = module;
+                
+                emulator = new wasm.WasmEmulator();
+                initDemoPrograms();
+                updateUI();
+                showMainContent();
+                
+                console.log('🎉 RISC-V Emulator initialized successfully!');
+                console.log('Click "Load Life Game Demo" to start the Conway\'s Game of Life demo.');
+            } catch (error) {
+                showError('Failed to initialize emulator: ' + error.message);
+            }
+        }
+
+        function showMainContent() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+        }
+
+        function showError(message) {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = `<div class="error">Error: ${message}</div>`;
+        }
+
+        function updateStatus(status, className) {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = status;
+            statusElement.className = 'status ' + className;
+        }
+
+        function updateUI() {
+            if (!emulator) return;
+
+            // Update PC
+            document.getElementById('pc-value').textContent = `0x${emulator.get_pc().toString(16).padStart(8, '0')}`;
+            
+            // Update instruction count
+            document.getElementById('inst-count').textContent = instructionCount;
+
+            // Update registers
+            const registersContainer = document.getElementById('registers');
+            registersContainer.innerHTML = '';
+            
+            for (let i = 0; i < 32; i++) {
+                const value = emulator.get_register(i);
+                const registerDiv = document.createElement('div');
+                registerDiv.className = 'register';
+                registerDiv.innerHTML = `
+                    <span class="register-name">x${i}:</span>
+                    <span class="register-value">0x${value.toString(16).padStart(8, '0')}</span>
+                `;
+                registersContainer.appendChild(registerDiv);
+            }
+        }
+
+        // Demo program (Conway's Game of Life compiled for RISC-V)
+        let lifegameDemo = null;
+
+        // Initialize demo programs when available
+        function initDemoPrograms() {
+            if (typeof generateLifeGameProgram === 'function') {
+                lifegameDemo = generateLifeGameProgram();
+            }
+        }
+
+        window.loadDemo = function() {
+            if (!emulator) return;
+            
+            // Initialize demo programs if not already done
+            if (!lifegameDemo) {
+                initDemoPrograms();
+            }
+            
+            if (!lifegameDemo) {
+                showError('Demo program not available');
+                return;
+            }
+            
+            try {
+                console.log('Loading Conway\'s Game of Life demo...');
+                
+                emulator.reset();
+                const loadAddr = emulator.load_binary(lifegameDemo);
+                console.log(`Demo loaded at address 0x${loadAddr.toString(16)}`);
+                
+                updateUI();
+                updateStatus('Demo Loaded', 'ready');
+                
+                document.getElementById('run-btn').disabled = false;
+                document.getElementById('step-btn').disabled = false;
+                
+                console.log('Demo ready! Click "Run Program" to start Conway\'s Game of Life.');
+            } catch (error) {
+                showError('Failed to load demo: ' + error.message);
+            }
+        };
+
+        window.runProgram = function() {
+            if (!emulator || isRunning) return;
+            
+            try {
+                isRunning = true;
+                updateStatus('Running', 'running');
+                document.getElementById('run-btn').disabled = true;
+                
+                console.log('Starting program execution...');
+                
+                // Run the program with a reasonable instruction limit
+                const maxInstructions = 10000;
+                const executed = emulator.run(maxInstructions);
+                
+                instructionCount = executed;
+                isRunning = false;
+                
+                updateUI();
+                updateStatus('Stopped', 'stopped');
+                document.getElementById('run-btn').disabled = false;
+                
+                console.log(`Program completed. Executed ${executed} instructions.`);
+            } catch (error) {
+                isRunning = false;
+                updateStatus('Error', 'stopped');
+                document.getElementById('run-btn').disabled = false;
+                showError('Runtime error: ' + error.message);
+            }
+        };
+
+        window.stepProgram = function() {
+            if (!emulator || isRunning) return;
+            
+            try {
+                const continuing = emulator.step();
+                instructionCount++;
+                updateUI();
+                
+                if (!continuing) {
+                    updateStatus('Stopped', 'stopped');
+                    console.log('Program terminated.');
+                }
+            } catch (error) {
+                showError('Step error: ' + error.message);
+                updateStatus('Error', 'stopped');
+            }
+        };
+
+        window.resetEmulator = function() {
+            if (!emulator) return;
+            
+            emulator.reset();
+            instructionCount = 0;
+            isRunning = false;
+            
+            updateUI();
+            updateStatus('Ready', 'ready');
+            
+            document.getElementById('run-btn').disabled = true;
+            document.getElementById('step-btn').disabled = true;
+            
+            console.log('Emulator reset.');
+        };
+
+        window.loadBinaryFile = function(event) {
+            const file = event.target.files[0];
+            if (!file || !emulator) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    emulator.reset();
+                    const loadAddr = emulator.load_binary(data);
+                    
+                    console.log(`Binary loaded: ${file.name} (${data.length} bytes) at 0x${loadAddr.toString(16)}`);
+                    
+                    updateUI();
+                    updateStatus('Binary Loaded', 'ready');
+                    
+                    document.getElementById('run-btn').disabled = false;
+                    document.getElementById('step-btn').disabled = false;
+                } catch (error) {
+                    showError('Failed to load binary: ' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        window.clearConsole = function() {
+            document.getElementById('console').textContent = '';
+        };
+
+        // Initialize when page loads
+        init();
+    </script>
+</body>
+</html>
