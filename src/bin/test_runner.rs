@@ -11,10 +11,10 @@ fn main() {
 
     let emulator_path = &args[1];
     let tests_dir = &args[2];
-    
+
     let mut json_output = false;
     let mut verbose_flag = None;
-    
+
     // Parse remaining arguments
     for arg in &args[3..] {
         match arg.as_str() {
@@ -23,7 +23,7 @@ fn main() {
             "-vv" => verbose_flag = Some("-vv"),
             "-vvv" => verbose_flag = Some("-vvv"),
             _ => {
-                eprintln!("Unknown argument: {}", arg);
+                eprintln!("Unknown argument: {arg}");
                 eprintln!("Usage: test_runner <emulator_path> <tests_dir> [--json] [-v|-vv|-vvv]");
                 exit(1);
             }
@@ -75,12 +75,12 @@ fn main() {
         // Run the emulator on this test with riscv-tests mode
         let mut cmd = Command::new(emulator_path);
         cmd.arg("--riscv-tests").arg(&path);
-        
+
         // Add verbose flag if specified
         if let Some(verbose) = verbose_flag {
             cmd.arg(verbose);
         }
-        
+
         let output = cmd.output();
 
         let (status, result_msg) = match output {

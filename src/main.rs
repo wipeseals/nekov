@@ -111,9 +111,9 @@ fn check_riscv_test_result(cpu: &nekov::cpu::Cpu, verbosity: u8) -> TestResult {
     if verbosity >= 1 {
         println!("=== RISC-V Test Result Analysis ===");
         println!("Register state at termination:");
-        println!("  gp (x3)  = 0x{:08x} (TESTNUM)", testnum);
-        println!("  a0 (x10) = 0x{:08x} (exit code)", a0);
-        println!("  a7 (x17) = 0x{:08x} (syscall number)", a7);
+        println!("  gp (x3)  = 0x{testnum:08x} (TESTNUM)");
+        println!("  a0 (x10) = 0x{a0:08x} (exit code)");
+        println!("  a7 (x17) = 0x{a7:08x} (syscall number)");
         println!();
         println!("Test result determination:");
     }
@@ -130,18 +130,18 @@ fn check_riscv_test_result(cpu: &nekov::cpu::Cpu, verbosity: u8) -> TestResult {
             TestResult::Pass
         } else if testnum != 1 {
             if verbosity >= 1 {
-                println!("  ✗ TESTNUM={} (≠1) and exit code={} → FAIL", testnum, a0);
+                println!("  ✗ TESTNUM={testnum} (≠1) and exit code={a0} → FAIL");
             }
             TestResult::Fail(a0)
         } else {
             if verbosity >= 1 {
-                println!("  ? TESTNUM=1 but exit code={} (≠0) → UNKNOWN", a0);
+                println!("  ? TESTNUM=1 but exit code={a0} (≠0) → UNKNOWN");
             }
             TestResult::Unknown
         }
     } else {
         if verbosity >= 1 {
-            println!("  ? System call number is {} (≠93) → UNKNOWN", a7);
+            println!("  ? System call number is {a7} (≠93) → UNKNOWN");
         }
         TestResult::Unknown
     }

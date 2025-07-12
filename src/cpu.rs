@@ -1,6 +1,36 @@
 /// RISC-V CPU implementation
 use crate::{memory::Memory, EmulatorError, Result};
 
+/// Macro for verbose logging at different levels
+macro_rules! verbose_log {
+    ($verbosity:expr, $level:expr, $($arg:tt)*) => {
+        if $verbosity >= $level {
+            println!($($arg)*);
+        }
+    };
+}
+
+/// Macro for debug-level verbose logging (level 3)
+macro_rules! debug_log {
+    ($verbosity:expr, $($arg:tt)*) => {
+        verbose_log!($verbosity, 3, $($arg)*);
+    };
+}
+
+/// Macro for info-level verbose logging (level 2)
+macro_rules! info_log {
+    ($verbosity:expr, $($arg:tt)*) => {
+        verbose_log!($verbosity, 2, $($arg)*);
+    };
+}
+
+/// Macro for basic verbose logging (level 1)
+macro_rules! basic_log {
+    ($verbosity:expr, $($arg:tt)*) => {
+        verbose_log!($verbosity, 1, $($arg)*);
+    };
+}
+
 /// RISC-V register count (x0-x31)
 const NUM_REGISTERS: usize = 32;
 
@@ -106,9 +136,7 @@ impl Cpu {
         // Fetch instruction from memory
         let instruction = memory.read_word(self.pc)?;
 
-        if verbosity >= 3 {
-            println!("  Fetched instruction: 0x{:08x}", instruction);
-        }
+        debug_log!(verbosity, "  Fetched instruction: 0x{instruction:08x}");
 
         // Decode and execute instruction
         self.decode_and_execute_with_verbosity(instruction, memory, verbosity)?;
@@ -117,97 +145,76 @@ impl Cpu {
     }
 
     /// Decode and execute an instruction with verbose output
-    fn decode_and_execute_with_verbosity(&mut self, instruction: u32, memory: &mut Memory, verbosity: u8) -> Result<()> {
+    fn decode_and_execute_with_verbosity(
+        &mut self,
+        instruction: u32,
+        memory: &mut Memory,
+        verbosity: u8,
+    ) -> Result<()> {
         // Extract opcode (bits 0-6)
         let opcode = instruction & 0x7F;
 
-        if verbosity >= 3 {
-            println!("  Opcode: 0x{:02x}", opcode);
-        }
+        debug_log!(verbosity, "  Opcode: 0x{opcode:02x}");
 
         match opcode {
             0x13 => {
                 // I-type instruction (ADDI, SLTI, XORI, etc.)
-                if verbosity >= 3 {
-                    println!("  I-type instruction");
-                }
+                debug_log!(verbosity, "  I-type instruction");
                 self.execute_i_type(instruction)
             }
             0x33 => {
                 // R-type instruction (ADD, SUB, XOR, etc.)
-                if verbosity >= 3 {
-                    println!("  R-type instruction");
-                }
+                debug_log!(verbosity, "  R-type instruction");
                 self.execute_r_type(instruction)
             }
             0x03 => {
                 // Load instructions (LB, LH, LW, LBU, LHU)
-                if verbosity >= 3 {
-                    println!("  Load instruction");
-                }
+                debug_log!(verbosity, "  Load instruction");
                 self.execute_load(instruction, memory)
             }
             0x23 => {
                 // Store instructions (SB, SH, SW)
-                if verbosity >= 3 {
-                    println!("  Store instruction");
-                }
+                debug_log!(verbosity, "  Store instruction");
                 self.execute_store(instruction, memory)
             }
             0x63 => {
                 // Branch instructions (BEQ, BNE, BLT, BGE, BLTU, BGEU)
-                if verbosity >= 3 {
-                    println!("  Branch instruction");
-                }
+                debug_log!(verbosity, "  Branch instruction");
                 self.execute_branch(instruction)
             }
             0x37 => {
                 // LUI instruction
-                if verbosity >= 3 {
-                    println!("  LUI instruction");
-                }
+                debug_log!(verbosity, "  LUI instruction");
                 self.execute_lui(instruction)
             }
             0x17 => {
                 // AUIPC instruction
-                if verbosity >= 3 {
-                    println!("  AUIPC instruction");
-                }
+                debug_log!(verbosity, "  AUIPC instruction");
                 self.execute_auipc(instruction)
             }
             0x6F => {
                 // JAL instruction
-                if verbosity >= 3 {
-                    println!("  JAL instruction");
-                }
+                debug_log!(verbosity, "  JAL instruction");
                 self.execute_jal(instruction)
             }
             0x67 => {
                 // JALR instruction
-                if verbosity >= 3 {
-                    println!("  JALR instruction");
-                }
+                debug_log!(verbosity, "  JALR instruction");
                 self.execute_jalr(instruction)
             }
             0x73 => {
                 // System instructions (ECALL, EBREAK)
-                if verbosity >= 3 {
-                    println!("  System instruction");
-                }
+                debug_log!(verbosity, "  System instruction");
                 self.execute_system(instruction)
             }
             0x2F => {
                 // RV32A atomic instructions
-                if verbosity >= 3 {
-                    println!("  Atomic instruction");
-                }
+                debug_log!(verbosity, "  Atomic instruction");
                 self.execute_atomic(instruction, memory)
             }
             0x0F => {
                 // FENCE instruction family (memory ordering)
-                if verbosity >= 3 {
-                    println!("  FENCE instruction");
-                }
+                debug_log!(verbosity, "  FENCE instruction");
                 let funct3 = (instruction >> 12) & 0x7;
                 match funct3 {
                     0x0 => {
@@ -1111,81 +1118,95 @@ impl Cpu {
     }
 
     /// Run the CPU with verbose output until it encounters an error or reaches a halt condition
-    pub fn run_with_verbosity(&mut self, memory: &mut Memory, max_instructions: Option<u32>, verbosity: u8) -> Result<u32> {
+    pub fn run_with_verbosity(
+        &mut self,
+        memory: &mut Memory,
+        max_instructions: Option<u32>,
+        verbosity: u8,
+    ) -> Result<u32> {
         let mut executed_instructions = 0;
 
-        if verbosity >= 3 {
-            println!("=== Starting CPU execution (verbose level {}) ===", verbosity);
-            if let Some(limit) = max_instructions {
-                println!("Instruction limit: {}", limit);
-            }
-            println!();
+        debug_log!(
+            verbosity,
+            "=== Starting CPU execution (verbose level {verbosity}) ==="
+        );
+        if let Some(limit) = max_instructions {
+            debug_log!(verbosity, "Instruction limit: {limit}");
         }
+        debug_log!(verbosity, "");
 
         loop {
             // Check instruction limit
             if let Some(max) = max_instructions {
                 if executed_instructions >= max {
-                    if verbosity >= 2 {
-                        println!("Instruction limit ({}) reached", max);
-                    }
+                    info_log!(verbosity, "Instruction limit ({max}) reached");
                     break;
                 }
             }
 
             // Verbose output for cycle-by-cycle execution
-            if verbosity >= 2 {
-                println!("Cycle {}: PC=0x{:08x}", executed_instructions + 1, self.pc);
-                if verbosity >= 3 {
-                    // Show instruction being executed
-                    if let Ok(instruction) = memory.read_word(self.pc) {
-                        println!("  Instruction: 0x{:08x}", instruction);
-                        // Show some key registers before execution
-                        println!("  Before: x1=0x{:08x} x2=0x{:08x} x3=0x{:08x} x10=0x{:08x}", 
-                                self.read_register(1), self.read_register(2), 
-                                self.read_register(3), self.read_register(10));
-                    }
+            info_log!(
+                verbosity,
+                "Cycle {}: PC=0x{:08x}",
+                executed_instructions + 1,
+                self.pc
+            );
+            if verbosity >= 3 {
+                // Show instruction being executed
+                if let Ok(instruction) = memory.read_word(self.pc) {
+                    debug_log!(verbosity, "  Instruction: 0x{instruction:08x}");
+                    // Show some key registers before execution
+                    debug_log!(
+                        verbosity,
+                        "  Before: x1=0x{:08x} x2=0x{:08x} x3=0x{:08x} x10=0x{:08x}",
+                        self.read_register(1),
+                        self.read_register(2),
+                        self.read_register(3),
+                        self.read_register(10)
+                    );
                 }
             }
 
-            // Execute one instruction  
+            // Execute one instruction
             match self.step_with_verbosity(memory, verbosity) {
                 Ok(()) => {
                     executed_instructions += 1;
-                    if verbosity >= 3 {
-                        println!("  After:  x1=0x{:08x} x2=0x{:08x} x3=0x{:08x} x10=0x{:08x}", 
-                                self.read_register(1), self.read_register(2), 
-                                self.read_register(3), self.read_register(10));
-                        println!();
-                    }
+                    debug_log!(
+                        verbosity,
+                        "  After:  x1=0x{:08x} x2=0x{:08x} x3=0x{:08x} x10=0x{:08x}",
+                        self.read_register(1),
+                        self.read_register(2),
+                        self.read_register(3),
+                        self.read_register(10)
+                    );
+                    debug_log!(verbosity, "");
                 }
                 Err(EmulatorError::UnsupportedInstruction) => {
-                    if verbosity >= 1 {
-                        println!("Unsupported instruction at PC: 0x{:08x}", self.pc);
-                    }
+                    basic_log!(
+                        verbosity,
+                        "Unsupported instruction at PC: 0x{:08x}",
+                        self.pc
+                    );
                     break;
                 }
                 Err(EmulatorError::EcallTermination) => {
                     // Normal termination via ECALL - this is expected in riscv-tests
                     executed_instructions += 1;
-                    if verbosity >= 2 {
-                        println!("ECALL termination at PC: 0x{:08x}", self.pc);
-                    }
+                    info_log!(verbosity, "ECALL termination at PC: 0x{:08x}", self.pc);
                     break;
                 }
                 Err(e) => {
-                    if verbosity >= 1 {
-                        println!("Error at PC: 0x{:08x}: {e}", self.pc);
-                    }
+                    basic_log!(verbosity, "Error at PC: 0x{:08x}: {e}", self.pc);
                     return Err(e);
                 }
             }
         }
 
-        if verbosity >= 3 {
-            println!("=== CPU execution completed ===");
-            println!("Total instructions executed: {}", executed_instructions);
-        }
+        debug_log!(verbosity, "=== CPU execution completed ===");
+        debug_log!(
+            verbosity,
+            "Total instructions executed: {executed_instructions}"
+        );
 
         Ok(executed_instructions)
     }
