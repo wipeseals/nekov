@@ -131,6 +131,15 @@ impl Cpu {
         self.step_with_verbosity(memory, 0)
     }
 
+    /// Execute a single instruction with peripheral support
+    pub fn step_with_peripherals(
+        &mut self,
+        memory: &mut Memory,
+        peripherals: &mut crate::peripheral::PeripheralManager,
+    ) -> Result<()> {
+        self.step_with_peripherals_and_verbosity(memory, peripherals, 0)
+    }
+
     /// Execute a single instruction with verbose output
     pub fn step_with_verbosity(&mut self, memory: &mut Memory, verbosity: u8) -> Result<()> {
         // Fetch instruction from memory
@@ -140,6 +149,29 @@ impl Cpu {
 
         // Decode and execute instruction
         self.decode_and_execute_with_verbosity(instruction, memory, verbosity)?;
+
+        Ok(())
+    }
+
+    /// Execute a single instruction with peripheral and verbose support
+    pub fn step_with_peripherals_and_verbosity(
+        &mut self,
+        memory: &mut Memory,
+        peripherals: &mut crate::peripheral::PeripheralManager,
+        verbosity: u8,
+    ) -> Result<()> {
+        // Fetch instruction from memory
+        let instruction = memory.read_word(self.pc)?;
+
+        debug_log!(verbosity, "  Fetched instruction: 0x{instruction:08x}");
+
+        // Decode and execute instruction
+        self.decode_and_execute_with_peripherals_and_verbosity(
+            instruction,
+            memory,
+            peripherals,
+            verbosity,
+        )?;
 
         Ok(())
     }
@@ -211,6 +243,102 @@ impl Cpu {
                 // RV32A atomic instructions
                 debug_log!(verbosity, "  Atomic instruction");
                 self.execute_atomic(instruction, memory)
+            }
+            0x0F => {
+                // FENCE instruction family (memory ordering)
+                debug_log!(verbosity, "  FENCE instruction");
+                let funct3 = (instruction >> 12) & 0x7;
+                match funct3 {
+                    0x0 => {
+                        // FENCE - memory fence
+                        // For our simple emulator, we'll treat it as a no-op
+                        self.pc = self.pc.wrapping_add(4);
+                        Ok(())
+                    }
+                    0x1 => {
+                        // FENCE.I - instruction fence
+                        // For our simple emulator, we'll treat it as a no-op
+                        self.pc = self.pc.wrapping_add(4);
+                        Ok(())
+                    }
+                    _ => Err(EmulatorError::UnsupportedInstruction),
+                }
+            }
+            _ => {
+                // Unsupported instruction
+                Err(EmulatorError::UnsupportedInstruction)
+            }
+        }
+    }
+
+    /// Decode and execute an instruction with peripheral and verbose support
+    fn decode_and_execute_with_peripherals_and_verbosity(
+        &mut self,
+        instruction: u32,
+        memory: &mut Memory,
+        peripherals: &mut crate::peripheral::PeripheralManager,
+        verbosity: u8,
+    ) -> Result<()> {
+        // Extract opcode (bits 0-6)
+        let opcode = instruction & 0x7F;
+
+        debug_log!(verbosity, "  Opcode: 0x{opcode:02x}");
+
+        match opcode {
+            0x13 => {
+                // I-type instruction (ADDI, SLTI, XORI, etc.)
+                debug_log!(verbosity, "  I-type instruction");
+                self.execute_i_type(instruction)
+            }
+            0x33 => {
+                // R-type instruction (ADD, SUB, XOR, etc.)
+                debug_log!(verbosity, "  R-type instruction");
+                self.execute_r_type(instruction)
+            }
+            0x03 => {
+                // Load instructions (LB, LH, LW, LBU, LHU)
+                debug_log!(verbosity, "  Load instruction");
+                self.execute_load_with_peripherals(instruction, memory, peripherals)
+            }
+            0x23 => {
+                // Store instructions (SB, SH, SW)
+                debug_log!(verbosity, "  Store instruction");
+                self.execute_store_with_peripherals(instruction, memory, peripherals)
+            }
+            0x63 => {
+                // Branch instructions (BEQ, BNE, BLT, BGE, BLTU, BGEU)
+                debug_log!(verbosity, "  Branch instruction");
+                self.execute_branch(instruction)
+            }
+            0x37 => {
+                // LUI instruction
+                debug_log!(verbosity, "  LUI instruction");
+                self.execute_lui(instruction)
+            }
+            0x17 => {
+                // AUIPC instruction
+                debug_log!(verbosity, "  AUIPC instruction");
+                self.execute_auipc(instruction)
+            }
+            0x6F => {
+                // JAL instruction
+                debug_log!(verbosity, "  JAL instruction");
+                self.execute_jal(instruction)
+            }
+            0x67 => {
+                // JALR instruction
+                debug_log!(verbosity, "  JALR instruction");
+                self.execute_jalr(instruction)
+            }
+            0x73 => {
+                // System instructions (ECALL, EBREAK)
+                debug_log!(verbosity, "  System instruction");
+                self.execute_system(instruction)
+            }
+            0x2F => {
+                // RV32A atomic instructions
+                debug_log!(verbosity, "  Atomic instruction");
+                self.execute_atomic_with_peripherals(instruction, memory, peripherals)
             }
             0x0F => {
                 // FENCE instruction family (memory ordering)
@@ -755,6 +883,145 @@ impl Cpu {
         Ok(())
     }
 
+    /// Execute load instructions with peripheral support
+    fn execute_load_with_peripherals(
+        &mut self,
+        instruction: u32,
+        memory: &mut Memory,
+        peripherals: &mut crate::peripheral::PeripheralManager,
+    ) -> Result<()> {
+        let rd = ((instruction >> 7) & 0x1F) as usize;
+        let funct3 = (instruction >> 12) & 0x7;
+        let rs1 = ((instruction >> 15) & 0x1F) as usize;
+        let imm = (instruction as i32) >> 20; // Sign-extend immediate
+
+        if rd >= NUM_REGISTERS || rs1 >= NUM_REGISTERS {
+            return Err(EmulatorError::UnsupportedInstruction);
+        }
+
+        let base_addr = self.read_register(rs1);
+        let addr = base_addr.wrapping_add(imm as u32);
+
+        // Check if this is a peripheral address
+        if peripherals.is_peripheral_address(addr) {
+            // Only support word loads from peripherals for now
+            match funct3 {
+                0x2 => {
+                    // LW - Load word from peripheral
+                    let value = peripherals.read(addr)?;
+                    self.write_register(rd, value);
+                }
+                _ => {
+                    // For now, only support word access to peripherals
+                    return Err(EmulatorError::UnsupportedInstruction);
+                }
+            }
+        } else {
+            // Normal memory access
+            match funct3 {
+                0x0 => {
+                    // LB - Load byte (sign-extended)
+                    let value = memory.read_byte(addr)? as i8 as i32 as u32;
+                    self.write_register(rd, value);
+                }
+                0x1 => {
+                    // LH - Load halfword (sign-extended, supports misaligned access)
+                    let value = memory.read_halfword(addr)? as u32;
+                    let sign_extended = if value & 0x8000 != 0 {
+                        value | 0xFFFF0000
+                    } else {
+                        value
+                    };
+                    self.write_register(rd, sign_extended);
+                }
+                0x2 => {
+                    // LW - Load word
+                    let value = memory.read_word(addr)?;
+                    self.write_register(rd, value);
+                }
+                0x4 => {
+                    // LBU - Load byte unsigned
+                    let value = memory.read_byte(addr)? as u32;
+                    self.write_register(rd, value);
+                }
+                0x5 => {
+                    // LHU - Load halfword unsigned (supports misaligned access)
+                    let value = memory.read_halfword(addr)? as u32;
+                    self.write_register(rd, value);
+                }
+                _ => return Err(EmulatorError::UnsupportedInstruction),
+            }
+        }
+
+        self.pc = self.pc.wrapping_add(4);
+        Ok(())
+    }
+
+    /// Execute store instructions with peripheral support
+    fn execute_store_with_peripherals(
+        &mut self,
+        instruction: u32,
+        memory: &mut Memory,
+        peripherals: &mut crate::peripheral::PeripheralManager,
+    ) -> Result<()> {
+        let imm_4_0 = (instruction >> 7) & 0x1F;
+        let funct3 = (instruction >> 12) & 0x7;
+        let rs1 = ((instruction >> 15) & 0x1F) as usize;
+        let rs2 = ((instruction >> 20) & 0x1F) as usize;
+        let imm_11_5 = (instruction >> 25) & 0x7F;
+
+        if rs1 >= NUM_REGISTERS || rs2 >= NUM_REGISTERS {
+            return Err(EmulatorError::UnsupportedInstruction);
+        }
+
+        // Reconstruct 12-bit signed immediate
+        let imm = ((imm_11_5 << 5) | imm_4_0) as i32;
+        let imm = if imm & 0x800 != 0 {
+            imm | 0xFFFFF000u32 as i32 // Sign extend
+        } else {
+            imm
+        };
+
+        let base_addr = self.read_register(rs1);
+        let addr = base_addr.wrapping_add(imm as u32);
+        let value = self.read_register(rs2);
+
+        // Check if this is a peripheral address
+        if peripherals.is_peripheral_address(addr) {
+            // Only support word stores to peripherals for now
+            match funct3 {
+                0x2 => {
+                    // SW - Store word to peripheral
+                    peripherals.write(addr, value)?;
+                }
+                _ => {
+                    // For now, only support word access to peripherals
+                    return Err(EmulatorError::UnsupportedInstruction);
+                }
+            }
+        } else {
+            // Normal memory access
+            match funct3 {
+                0x0 => {
+                    // SB - Store byte
+                    memory.write_byte(addr, value as u8)?;
+                }
+                0x1 => {
+                    // SH - Store halfword (supports misaligned access)
+                    memory.write_halfword(addr, value as u16)?;
+                }
+                0x2 => {
+                    // SW - Store word
+                    memory.write_word(addr, value)?;
+                }
+                _ => return Err(EmulatorError::UnsupportedInstruction),
+            }
+        }
+
+        self.pc = self.pc.wrapping_add(4);
+        Ok(())
+    }
+
     /// Execute branch instructions (BEQ, BNE, BLT, BGE, BLTU, BGEU)
     fn execute_branch(&mut self, instruction: u32) -> Result<()> {
         let imm_11 = (instruction >> 7) & 0x1;
@@ -1112,6 +1379,30 @@ impl Cpu {
         Ok(())
     }
 
+    /// Execute atomic instructions with peripheral support
+    fn execute_atomic_with_peripherals(
+        &mut self,
+        instruction: u32,
+        memory: &mut Memory,
+        peripherals: &mut crate::peripheral::PeripheralManager,
+    ) -> Result<()> {
+        // For peripherals, we'll only allow normal memory atomic operations for now
+        // Peripheral addresses don't support atomic operations in this implementation
+        let rs1 = ((instruction >> 15) & 0x1F) as usize;
+        if rs1 >= NUM_REGISTERS {
+            return Err(EmulatorError::UnsupportedInstruction);
+        }
+        
+        let addr = self.read_register(rs1);
+        if peripherals.is_peripheral_address(addr) {
+            // Atomic operations on peripherals not supported
+            return Err(EmulatorError::UnsupportedInstruction);
+        }
+        
+        // Use normal atomic implementation for memory addresses
+        self.execute_atomic(instruction, memory)
+    }
+
     /// Run the CPU until it encounters an error or reaches a halt condition
     pub fn run(&mut self, memory: &mut Memory, max_instructions: Option<u32>) -> Result<u32> {
         self.run_with_verbosity(memory, max_instructions, 0)
@@ -1199,6 +1490,74 @@ impl Cpu {
                     basic_log!(verbosity, "Error at PC: 0x{:08x}: {e}", self.pc);
                     return Err(e);
                 }
+            }
+        }
+
+        debug_log!(verbosity, "=== CPU execution completed ===");
+        debug_log!(
+            verbosity,
+            "Total instructions executed: {executed_instructions}"
+        );
+
+        Ok(executed_instructions)
+    }
+
+    /// Run the CPU with peripheral support until it encounters an error or reaches a halt condition
+    pub fn run_with_peripherals(
+        &mut self,
+        memory: &mut Memory,
+        peripherals: &mut crate::peripheral::PeripheralManager,
+        max_instructions: Option<u32>,
+    ) -> Result<u32> {
+        self.run_with_peripherals_and_verbosity(memory, peripherals, max_instructions, 0)
+    }
+
+    /// Run the CPU with peripheral and verbose support until it encounters an error or reaches a halt condition
+    pub fn run_with_peripherals_and_verbosity(
+        &mut self,
+        memory: &mut Memory,
+        peripherals: &mut crate::peripheral::PeripheralManager,
+        max_instructions: Option<u32>,
+        verbosity: u8,
+    ) -> Result<u32> {
+        let mut executed_instructions = 0;
+
+        debug_log!(
+            verbosity,
+            "=== Starting CPU execution with peripherals (verbose level {verbosity}) ==="
+        );
+        if let Some(limit) = max_instructions {
+            debug_log!(verbosity, "Instruction limit: {limit}");
+        }
+        debug_log!(verbosity, "");
+
+        loop {
+            // Check instruction limit
+            if let Some(max) = max_instructions {
+                if executed_instructions >= max {
+                    info_log!(verbosity, "Instruction limit ({max}) reached");
+                    break;
+                }
+            }
+
+            // Verbose output for cycle-by-cycle execution
+            info_log!(
+                verbosity,
+                "Cycle {}: PC=0x{:08x}",
+                executed_instructions + 1,
+                self.pc
+            );
+
+            // Execute one instruction
+            match self.step_with_peripherals_and_verbosity(memory, peripherals, verbosity) {
+                Ok(()) => {
+                    executed_instructions += 1;
+                }
+                Err(EmulatorError::EcallTermination) => {
+                    info_log!(verbosity, "ECALL termination detected");
+                    break;
+                }
+                Err(e) => return Err(e),
             }
         }
 

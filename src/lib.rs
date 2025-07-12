@@ -1,6 +1,10 @@
 pub mod cpu;
 pub mod elf_loader;
 pub mod memory;
+pub mod peripheral;
+
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
 
 use std::path::Path;
 
