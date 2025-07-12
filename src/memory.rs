@@ -42,12 +42,17 @@ impl Memory {
         Ok(())
     }
 
-    /// Read a 32-bit word from memory (little-endian)
-    pub fn read_word(&self, address: u32) -> Result<u32, EmulatorError> {
-        if address % 4 != 0 {
-            return Err(EmulatorError::MemoryAccessError);
-        }
+    /// Read a 16-bit halfword from memory (little-endian, supports misaligned access)
+    pub fn read_halfword(&self, address: u32) -> Result<u16, EmulatorError> {
+        let byte0 = self.read_byte(address)?;
+        let byte1 = self.read_byte(address + 1)?;
 
+        let value = u16::from_le_bytes([byte0, byte1]);
+        Ok(value)
+    }
+
+    /// Read a 32-bit word from memory (little-endian, supports misaligned access)
+    pub fn read_word(&self, address: u32) -> Result<u32, EmulatorError> {
         let byte0 = self.read_byte(address)?;
         let byte1 = self.read_byte(address + 1)?;
         let byte2 = self.read_byte(address + 2)?;
@@ -57,12 +62,16 @@ impl Memory {
         Ok(value)
     }
 
-    /// Write a 32-bit word to memory (little-endian)
-    pub fn write_word(&mut self, address: u32, value: u32) -> Result<(), EmulatorError> {
-        if address % 4 != 0 {
-            return Err(EmulatorError::MemoryAccessError);
-        }
+    /// Write a 16-bit halfword to memory (little-endian, supports misaligned access)
+    pub fn write_halfword(&mut self, address: u32, value: u16) -> Result<(), EmulatorError> {
+        let bytes = value.to_le_bytes();
+        self.write_byte(address, bytes[0])?;
+        self.write_byte(address + 1, bytes[1])?;
+        Ok(())
+    }
 
+    /// Write a 32-bit word to memory (little-endian, supports misaligned access)
+    pub fn write_word(&mut self, address: u32, value: u32) -> Result<(), EmulatorError> {
         let bytes = value.to_le_bytes();
         self.write_byte(address, bytes[0])?;
         self.write_byte(address + 1, bytes[1])?;
@@ -132,16 +141,23 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_unaligned_word_access() {
+    fn test_memory_misaligned_access() {
         let mut memory = Memory::new();
         let base = memory.base_address();
 
-        // Test unaligned access (should fail)
-        let result = memory.write_word(base + 1, 0x12345678);
-        assert!(matches!(result, Err(EmulatorError::MemoryAccessError)));
+        // Test misaligned halfword access (should work)
+        memory.write_halfword(base + 1, 0x1234).unwrap();
+        assert_eq!(memory.read_halfword(base + 1).unwrap(), 0x1234);
 
-        let result = memory.read_word(base + 2);
-        assert!(matches!(result, Err(EmulatorError::MemoryAccessError)));
+        // Test misaligned word access (should work)
+        memory.write_word(base + 5, 0x12345678).unwrap();
+        assert_eq!(memory.read_word(base + 5).unwrap(), 0x12345678);
+
+        // Verify individual bytes
+        assert_eq!(memory.read_byte(base + 5).unwrap(), 0x78); // LSB
+        assert_eq!(memory.read_byte(base + 6).unwrap(), 0x56);
+        assert_eq!(memory.read_byte(base + 7).unwrap(), 0x34);
+        assert_eq!(memory.read_byte(base + 8).unwrap(), 0x12); // MSB
     }
 
     #[test]

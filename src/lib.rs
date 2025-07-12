@@ -10,6 +10,7 @@ pub enum EmulatorError {
     InvalidElfFormat,
     UnsupportedInstruction,
     MemoryAccessError,
+    EcallTermination, // Normal termination via ECALL
 }
 
 impl std::fmt::Display for EmulatorError {
@@ -19,6 +20,7 @@ impl std::fmt::Display for EmulatorError {
             EmulatorError::InvalidElfFormat => write!(f, "Invalid ELF format"),
             EmulatorError::UnsupportedInstruction => write!(f, "Unsupported instruction"),
             EmulatorError::MemoryAccessError => write!(f, "Memory access error"),
+            EmulatorError::EcallTermination => write!(f, "Normal termination via ECALL"),
         }
     }
 }
