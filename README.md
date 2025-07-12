@@ -13,12 +13,39 @@ A RISC-V emulator in Rust, probably written by a cat. 🐈
 - **Register File**: 32 general-purpose registers (x0-x31) with x0 hardwired to zero
 - **Instruction Execution**: Fetch-decode-execute cycle with instruction limits for safety
 - **RISC-V Tests Integration**: Support for running official RISC-V test suite
+- **WebAssembly Support**: Full WASM compilation for browser execution
+- **Peripheral System**: Memory-mapped peripheral support with console output
+- **Web Demo**: Interactive Conway's Game of Life running in the browser
 
 ## Building
 
 ```bash
 cargo build --release
 ```
+
+## Web Demo
+
+Try the emulator in your browser! The web demo features Conway's Game of Life running on the RISC-V emulator compiled to WebAssembly.
+
+🌐 **[Live Demo](https://wipeseals.github.io/nekov)** (GitHub Pages)
+
+### Running Locally
+
+```bash
+# Quick start - builds and serves the demo
+./demo/serve.sh
+
+# Manual build
+wasm-pack build --target web --out-dir demo/web/pkg
+cd demo/web && python3 -m http.server 8000
+```
+
+The web demo includes:
+- Interactive RISC-V emulator controls
+- Conway's Game of Life demonstration  
+- Real-time CPU state monitoring
+- Console output from memory-mapped UART
+- Support for uploading custom RISC-V binaries
 
 ## Running
 
@@ -50,6 +77,9 @@ cargo run --bin instruction_test
 - ✅ **RV32A Implementation**: Atomic instruction extension (11 instructions)
 - ✅ **Test Suite**: Comprehensive unit tests for all instruction categories (27 tests)
 - ✅ **CI/CD**: GitHub Actions for testing, linting, and formatting
+- ✅ **WebAssembly**: Browser execution with full emulator functionality
+- ✅ **Peripherals**: Memory-mapped device support with console output
+- ✅ **Web Demo**: Conway's Game of Life running in the browser
 
 ### Supported Instructions
 
@@ -83,6 +113,29 @@ cargo run --bin instruction_test
 | **Atomic Min/Max** | AMOMIN.W, AMOMAX.W, AMOMINU.W, AMOMAXU.W | ✅ |
 
 **Total: 50+ instructions implemented covering RV32IMA**
+
+### Peripheral System
+
+The emulator includes a flexible peripheral system for hardware simulation:
+
+| Peripheral | Base Address | Description |
+|------------|--------------|-------------|
+| **Console UART** | 0x10000000 | Character output to console/browser |
+
+#### Memory Map
+- **Program Memory**: 0x80000000+ (loaded binaries)
+- **Console UART**: 0x10000000-0x10000FFF (4KB range)
+- **General Memory**: Other addresses as needed
+
+#### UART Interface
+```c
+#define UART_BASE 0x10000000
+#define UART_TX   (*(volatile uint32_t*)(UART_BASE + 0))
+
+void putchar(char c) {
+    UART_TX = (uint32_t)c;  // Write character to console
+}
+```
 
 ### Test Results
 
