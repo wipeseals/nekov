@@ -23,8 +23,19 @@ impl Cpu {
         // Initialize commonly used CSRs
         csrs.insert(0xF14, 0); // mhartid - hardware thread ID
         csrs.insert(0x300, 0); // mstatus - machine status
-        csrs.insert(0x342, 0); // mcause - machine trap cause
         csrs.insert(0x341, 0); // mepc - machine exception program counter
+        csrs.insert(0x342, 0); // mcause - machine trap cause
+        csrs.insert(0x343, 0); // mtval - machine trap value
+        csrs.insert(0x344, 0); // mip - machine interrupt pending
+        csrs.insert(0x304, 0); // mie - machine interrupt enable
+        csrs.insert(0x305, 0); // mtvec - machine trap-handler base address
+        csrs.insert(0x340, 0); // mscratch - machine scratch register
+        csrs.insert(0xF11, 0); // mvendorid - vendor ID
+        csrs.insert(0xF12, 0); // marchid - architecture ID
+        csrs.insert(0xF13, 0); // mimpid - implementation ID
+        csrs.insert(0xC00, 0); // cycle - cycle counter
+        csrs.insert(0xC01, 0); // time - time counter
+        csrs.insert(0xC02, 0); // instret - instructions retired counter
         
         Self {
             registers: [0; NUM_REGISTERS],
@@ -41,8 +52,19 @@ impl Cpu {
         self.csrs.clear();
         self.csrs.insert(0xF14, 0); // mhartid
         self.csrs.insert(0x300, 0); // mstatus
-        self.csrs.insert(0x342, 0); // mcause
         self.csrs.insert(0x341, 0); // mepc
+        self.csrs.insert(0x342, 0); // mcause
+        self.csrs.insert(0x343, 0); // mtval
+        self.csrs.insert(0x344, 0); // mip
+        self.csrs.insert(0x304, 0); // mie
+        self.csrs.insert(0x305, 0); // mtvec
+        self.csrs.insert(0x340, 0); // mscratch
+        self.csrs.insert(0xF11, 0); // mvendorid
+        self.csrs.insert(0xF12, 0); // marchid
+        self.csrs.insert(0xF13, 0); // mimpid
+        self.csrs.insert(0xC00, 0); // cycle
+        self.csrs.insert(0xC01, 0); // time
+        self.csrs.insert(0xC02, 0); // instret
     }
 
     /// Read a register value
@@ -136,10 +158,23 @@ impl Cpu {
                 self.execute_atomic(instruction, memory)
             }
             0x0F => {
-                // FENCE instruction (memory ordering)
-                // For our simple emulator, we'll treat it as a no-op
-                self.pc = self.pc.wrapping_add(4);
-                Ok(())
+                // FENCE instruction family (memory ordering)
+                let funct3 = (instruction >> 12) & 0x7;
+                match funct3 {
+                    0x0 => {
+                        // FENCE - memory fence
+                        // For our simple emulator, we'll treat it as a no-op
+                        self.pc = self.pc.wrapping_add(4);
+                        Ok(())
+                    }
+                    0x1 => {
+                        // FENCE.I - instruction fence
+                        // For our simple emulator, we'll treat it as a no-op
+                        self.pc = self.pc.wrapping_add(4);
+                        Ok(())
+                    }
+                    _ => Err(EmulatorError::UnsupportedInstruction),
+                }
             }
             _ => {
                 // Unsupported instruction
@@ -835,18 +870,22 @@ impl Cpu {
             0x1 => {
                 // CSRRW - CSR Read/Write
                 let old_value = self.read_csr(csr);
+                if rd != 0 {  // Only read old value if rd is non-zero
+                    self.write_register(rd, old_value);
+                }
                 let new_value = self.read_register(rs1);
                 self.write_csr(csr, new_value);
-                self.write_register(rd, old_value);
                 self.pc = self.pc.wrapping_add(4);
                 Ok(())
             }
             0x2 => {
                 // CSRRS - CSR Read and Set bits
                 let old_value = self.read_csr(csr);
-                let mask = self.read_register(rs1);
-                let new_value = old_value | mask;
-                self.write_csr(csr, new_value);
+                if rs1 != 0 {  // Only write if rs1 is non-zero
+                    let mask = self.read_register(rs1);
+                    let new_value = old_value | mask;
+                    self.write_csr(csr, new_value);
+                }
                 self.write_register(rd, old_value);
                 self.pc = self.pc.wrapping_add(4);
                 Ok(())
@@ -854,9 +893,11 @@ impl Cpu {
             0x3 => {
                 // CSRRC - CSR Read and Clear bits  
                 let old_value = self.read_csr(csr);
-                let mask = self.read_register(rs1);
-                let new_value = old_value & !mask;
-                self.write_csr(csr, new_value);
+                if rs1 != 0 {  // Only write if rs1 is non-zero
+                    let mask = self.read_register(rs1);
+                    let new_value = old_value & !mask;
+                    self.write_csr(csr, new_value);
+                }
                 self.write_register(rd, old_value);
                 self.pc = self.pc.wrapping_add(4);
                 Ok(())
@@ -864,18 +905,22 @@ impl Cpu {
             0x5 => {
                 // CSRRWI - CSR Read/Write Immediate
                 let old_value = self.read_csr(csr);
-                let imm = rs1 as u32; // rs1 field contains immediate value
+                if rd != 0 {  // Only read old value if rd is non-zero
+                    self.write_register(rd, old_value);
+                }
+                let imm = rs1 as u32; // rs1 field contains immediate value (zero-extended)
                 self.write_csr(csr, imm);
-                self.write_register(rd, old_value);
                 self.pc = self.pc.wrapping_add(4);
                 Ok(())
             }
             0x6 => {
                 // CSRRSI - CSR Read and Set bits Immediate
                 let old_value = self.read_csr(csr);
-                let imm = rs1 as u32; // rs1 field contains immediate value
-                let new_value = old_value | imm;
-                self.write_csr(csr, new_value);
+                let imm = rs1 as u32; // rs1 field contains immediate value (zero-extended)
+                if imm != 0 {  // Only write if immediate is non-zero
+                    let new_value = old_value | imm;
+                    self.write_csr(csr, new_value);
+                }
                 self.write_register(rd, old_value);
                 self.pc = self.pc.wrapping_add(4);
                 Ok(())
@@ -883,9 +928,11 @@ impl Cpu {
             0x7 => {
                 // CSRRCI - CSR Read and Clear bits Immediate
                 let old_value = self.read_csr(csr);
-                let imm = rs1 as u32; // rs1 field contains immediate value
-                let new_value = old_value & !imm;
-                self.write_csr(csr, new_value);
+                let imm = rs1 as u32; // rs1 field contains immediate value (zero-extended)
+                if imm != 0 {  // Only write if immediate is non-zero
+                    let new_value = old_value & !imm;
+                    self.write_csr(csr, new_value);
+                }
                 self.write_register(rd, old_value);
                 self.pc = self.pc.wrapping_add(4);
                 Ok(())
