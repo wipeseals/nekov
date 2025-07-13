@@ -1869,36 +1869,36 @@ mod tests {
         memory.write_word(base_addr + 4, 0xDEADBEEF).unwrap();
 
         // Test LW (Load Word)
-        let lw_instruction = ((0x2 << 12)) | (1 << 7) | 0x03; // lw x1, 0(x0)
+        let lw_instruction = (0x2 << 12) | (1 << 7) | 0x03; // lw x1, 0(x0)
         cpu.write_register(0, base_addr); // This won't actually change x0, but for the test we set the base
         cpu.execute_load(lw_instruction, &mut memory).unwrap();
         // Since x0 is always 0, we need to manually set up the test differently
 
         // Better test: use a non-zero base register
         cpu.write_register(2, base_addr);
-        let lw_instruction = ((2 << 15)) | (0x2 << 12) | (1 << 7) | 0x03; // lw x1, 0(x2)
+        let lw_instruction = (2 << 15) | (0x2 << 12) | (1 << 7) | 0x03; // lw x1, 0(x2)
         cpu.execute_load(lw_instruction, &mut memory).unwrap();
         assert_eq!(cpu.read_register(1), 0x12345678);
 
         // Test LB (Load Byte signed)
-        let lb_instruction = (((2 << 15))) | (3 << 7) | 0x03; // lb x3, 0(x2)
+        let lb_instruction = (2 << 15) | (3 << 7) | 0x03; // lb x3, 0(x2)
         cpu.execute_load(lb_instruction, &mut memory).unwrap();
         assert_eq!(cpu.read_register(3), 0x78); // LSB of 0x12345678
 
         // Test LBU (Load Byte unsigned)
-        let lbu_instruction = ((2 << 15)) | (0x4 << 12) | (4 << 7) | 0x03; // lbu x4, 0(x2)
+        let lbu_instruction = (2 << 15) | (0x4 << 12) | (4 << 7) | 0x03; // lbu x4, 0(x2)
         cpu.execute_load(lbu_instruction, &mut memory).unwrap();
         assert_eq!(cpu.read_register(4), 0x78);
 
         // Test SW (Store Word)
         cpu.write_register(5, 0xCAFEBABE);
-        let sw_instruction = ((5 << 20)) | (2 << 15) | (0x2 << 12) | (8 << 7) | 0x23; // sw x5, 8(x2)
+        let sw_instruction = (5 << 20) | (2 << 15) | (0x2 << 12) | (8 << 7) | 0x23; // sw x5, 8(x2)
         cpu.execute_store(sw_instruction, &mut memory).unwrap();
         assert_eq!(memory.read_word(base_addr + 8).unwrap(), 0xCAFEBABE);
 
         // Test SB (Store Byte)
         cpu.write_register(6, 0xAB);
-        let sb_instruction = (((6 << 20)) | (2 << 15)) | (12 << 7) | 0x23; // sb x6, 12(x2)
+        let sb_instruction = ((6 << 20) | (2 << 15)) | (12 << 7) | 0x23; // sb x6, 12(x2)
         cpu.execute_store(sb_instruction, &mut memory).unwrap();
         assert_eq!(memory.read_byte(base_addr + 12).unwrap(), 0xAB);
     }
@@ -1919,10 +1919,7 @@ mod tests {
         let imm_11 = 0u32;
         let imm_10_5 = 0u32;
         let imm_4_1 = 0b0100u32; // 4 in binary
-        let beq_instruction = ((imm_12 << 31)
-            | (imm_10_5 << 25)
-            | (2 << 20)
-            | (1 << 15))
+        let beq_instruction = ((imm_12 << 31) | (imm_10_5 << 25) | (2 << 20) | (1 << 15))
             | (imm_4_1 << 8)
             | (imm_11 << 7)
             | 0x63;
@@ -2018,7 +2015,7 @@ mod tests {
         cpu.write_register(1, base_addr);
 
         // Test LR.W (Load Reserved Word)
-        let lr_instruction = ((0x02 << 27)) | (1 << 15) | (0x2 << 12) | (2 << 7) | 0x2F;
+        let lr_instruction = (0x02 << 27) | (1 << 15) | (0x2 << 12) | (2 << 7) | 0x2F;
         cpu.execute_atomic(lr_instruction, &mut memory).unwrap();
         assert_eq!(cpu.read_register(2), 100);
 
@@ -2040,8 +2037,7 @@ mod tests {
 
         // Test AMOADD.W
         cpu.write_register(7, 50);
-        let amoadd_instruction =
-            ((7 << 20)) | (1 << 15) | (0x2 << 12) | (8 << 7) | 0x2F;
+        let amoadd_instruction = (7 << 20) | (1 << 15) | (0x2 << 12) | (8 << 7) | 0x2F;
         cpu.execute_atomic(amoadd_instruction, &mut memory).unwrap();
         assert_eq!(cpu.read_register(8), 300); // Old value
         assert_eq!(memory.read_word(base_addr).unwrap(), 350); // 300 + 50
@@ -2067,7 +2063,7 @@ mod tests {
 
         // Test CSRRS with rs1=0 (should not write)
         let old_csr = cpu.read_csr(0x301);
-        let csrrs_no_write = ((0x301 << 20)) | (2 << 12) | (3 << 7) | 0x73;
+        let csrrs_no_write = (0x301 << 20) | (2 << 12) | (3 << 7) | 0x73;
         assert!(cpu.execute_system(csrrs_no_write).is_ok());
         assert_eq!(cpu.read_csr(0x301), old_csr); // Should be unchanged
         assert_eq!(cpu.read_register(3), old_csr); // Should have read the value
