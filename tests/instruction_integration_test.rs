@@ -24,7 +24,7 @@ fn test_i_type_instructions() {
 
     let instructions = vec![
         // addi x1, x0, 42        ; x1 = 42
-        (42 << 20) | (0 << 15) | (0 << 12) | (1 << 7) | 0x13,
+        (((42 << 20))) | (1 << 7) | 0x13,
         // xori x2, x1, 15        ; x2 = 42 ^ 15 = 37
         (15 << 20) | (1 << 15) | (4 << 12) | (2 << 7) | 0x13,
         // ori x3, x1, 128        ; x3 = 42 | 128 = 170
@@ -55,11 +55,11 @@ fn test_r_type_arithmetic() {
 
     let instructions = vec![
         // add x5, x1, x2         ; x5 = 42 + 37 = 79
-        (0 << 25) | (2 << 20) | (1 << 15) | (0 << 12) | (5 << 7) | 0x33,
+        (((2 << 20)) | (1 << 15)) | (5 << 7) | 0x33,
         // sub x6, x5, x1         ; x6 = 79 - 42 = 37
-        (0x20 << 25) | (1 << 20) | (5 << 15) | (0 << 12) | (6 << 7) | 0x33,
+        ((0x20 << 25) | (1 << 20) | (5 << 15)) | (6 << 7) | 0x33,
         // sll x7, x1, x2         ; x7 = 42 << (37 & 31) = 42 << 5 = 1344
-        (0 << 25) | (2 << 20) | (1 << 15) | (1 << 12) | (7 << 7) | 0x33,
+        ((2 << 20)) | (1 << 15) | (1 << 12) | (7 << 7) | 0x33,
     ];
 
     run_instructions(&mut cpu, &mut memory, &instructions).unwrap();
@@ -83,11 +83,11 @@ fn test_load_store_instructions() {
 
     let instructions = vec![
         // sw x9, 0(x8)           ; Store 0xDEADBEEF at base_addr + 100
-        (0 << 25) | (9 << 20) | (8 << 15) | (2 << 12) | (0 << 7) | 0x23,
+        (((9 << 20)) | (8 << 15) | (2 << 12)) | 0x23,
         // lw x10, 0(x8)          ; Load word from base_addr + 100 into x10
-        (0 << 20) | (8 << 15) | (2 << 12) | (10 << 7) | 0x03,
+        ((8 << 15)) | (2 << 12) | (10 << 7) | 0x03,
         // lb x11, 0(x8)          ; Load byte (signed) from base_addr + 100 into x11
-        (0 << 20) | (8 << 15) | (0 << 12) | (11 << 7) | 0x03,
+        (((8 << 15))) | (11 << 7) | 0x03,
     ];
 
     run_instructions(&mut cpu, &mut memory, &instructions).unwrap();
@@ -109,7 +109,7 @@ fn test_branch_instructions() {
     // beq x12, x12, 8         ; Should branch (10 == 10)
     // Offset 8: imm[4:1] = 4, others = 0
     let beq_instruction =
-        (0 << 31) | (0 << 25) | (12 << 20) | (12 << 15) | (0 << 12) | (4 << 8) | (0 << 7) | 0x63;
+        ((((12 << 20)) | (12 << 15)) | (4 << 8)) | 0x63;
     memory.write_word(cpu.pc, beq_instruction).unwrap();
 
     let old_pc = cpu.pc;
@@ -129,7 +129,7 @@ fn test_multiplication_instructions() {
 
     let instructions = vec![
         // mul x16, x14, x15       ; x16 = 6 * 7 = 42
-        (1 << 25) | (15 << 20) | (14 << 15) | (0 << 12) | (16 << 7) | 0x33,
+        ((1 << 25) | (15 << 20) | (14 << 15)) | (16 << 7) | 0x33,
         // div x17, x16, x14       ; x17 = 42 / 6 = 7
         (1 << 25) | (14 << 20) | (16 << 15) | (4 << 12) | (17 << 7) | 0x33,
     ];
@@ -174,17 +174,17 @@ fn test_comprehensive_rv32ima_sequence() {
     // Complex sequence: Load immediate -> Square it -> Store to memory -> Load back
     let instructions = vec![
         // addi x1, x0, 42        ; Load immediate value 42
-        (42 << 20) | (0 << 15) | (0 << 12) | (1 << 7) | 0x13,
+        (((42 << 20))) | (1 << 7) | 0x13,
         // mul x2, x1, x1         ; Square the value (42 * 42 = 1764)
-        (1 << 25) | (1 << 20) | (1 << 15) | (0 << 12) | (2 << 7) | 0x33,
+        ((1 << 25) | (1 << 20) | (1 << 15)) | (2 << 7) | 0x33,
         // addi x3, x0, 1000      ; Load base address offset
-        (1000 << 20) | (0 << 15) | (0 << 12) | (3 << 7) | 0x13,
+        (((1000 << 20))) | (3 << 7) | 0x13,
         // add x4, x3, x0         ; Copy to address register (just to test ADD)
-        (0 << 25) | (0 << 20) | (3 << 15) | (0 << 12) | (4 << 7) | 0x33,
+        (((3 << 15))) | (4 << 7) | 0x33,
         // sw x2, 0(x4)           ; Store squared value to memory
-        (0 << 25) | (2 << 20) | (4 << 15) | (2 << 12) | (0 << 7) | 0x23,
+        (((2 << 20)) | (4 << 15) | (2 << 12)) | 0x23,
         // lw x5, 0(x4)           ; Load back from memory
-        (0 << 20) | (4 << 15) | (2 << 12) | (5 << 7) | 0x03,
+        ((4 << 15)) | (2 << 12) | (5 << 7) | 0x03,
     ];
 
     run_instructions(&mut cpu, &mut memory, &instructions).unwrap();

@@ -5,16 +5,16 @@ use crate::Result;
 pub trait Peripheral {
     /// Read from the peripheral at the given address offset
     fn read(&mut self, offset: u32) -> Result<u32>;
-    
+
     /// Write to the peripheral at the given address offset
     fn write(&mut self, offset: u32, value: u32) -> Result<()>;
-    
+
     /// Get the base address of this peripheral
     fn base_address(&self) -> u32;
-    
+
     /// Get the size of the peripheral's address space
     fn size(&self) -> u32;
-    
+
     /// Check if an address is within this peripheral's range
     fn contains_address(&self, address: u32) -> bool {
         let base = self.base_address();
@@ -38,7 +38,7 @@ impl Peripheral for ConsolePeriph {
         // Console is write-only for now
         Ok(0)
     }
-    
+
     fn write(&mut self, offset: u32, value: u32) -> Result<()> {
         match offset {
             0 => {
@@ -59,11 +59,11 @@ impl Peripheral for ConsolePeriph {
             _ => Ok(()),
         }
     }
-    
+
     fn base_address(&self) -> u32 {
         self.base_addr
     }
-    
+
     fn size(&self) -> u32 {
         0x1000 // 4KB address space
     }
@@ -80,11 +80,11 @@ impl PeripheralManager {
             peripherals: Vec::new(),
         }
     }
-    
+
     pub fn add_peripheral(&mut self, peripheral: Box<dyn Peripheral>) {
         self.peripherals.push(peripheral);
     }
-    
+
     pub fn read(&mut self, address: u32) -> Result<u32> {
         for peripheral in &mut self.peripherals {
             if peripheral.contains_address(address) {
@@ -95,7 +95,7 @@ impl PeripheralManager {
         // If no peripheral handles this address, return 0
         Ok(0)
     }
-    
+
     pub fn write(&mut self, address: u32, value: u32) -> Result<()> {
         for peripheral in &mut self.peripherals {
             if peripheral.contains_address(address) {
@@ -106,7 +106,7 @@ impl PeripheralManager {
         // If no peripheral handles this address, ignore the write
         Ok(())
     }
-    
+
     pub fn is_peripheral_address(&self, address: u32) -> bool {
         self.peripherals.iter().any(|p| p.contains_address(address))
     }
@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn test_console_peripheral() {
         let mut console = ConsolePeriph::new(0x10000000);
-        
+
         // Test base address and size
         assert_eq!(console.base_address(), 0x10000000);
         assert_eq!(console.size(), 0x1000);
@@ -133,10 +133,10 @@ mod tests {
         assert!(console.contains_address(0x10000FFF));
         assert!(!console.contains_address(0x0FFFFFFF));
         assert!(!console.contains_address(0x10001000));
-        
+
         // Test read (should return 0)
         assert_eq!(console.read(0).unwrap(), 0);
-        
+
         // Test write (should succeed)
         assert!(console.write(0, b'H' as u32).is_ok());
         assert!(console.write(0, b'i' as u32).is_ok());
@@ -145,20 +145,20 @@ mod tests {
     #[test]
     fn test_peripheral_manager() {
         let mut manager = PeripheralManager::new();
-        
+
         // Add console peripheral
         let console = ConsolePeriph::new(0x10000000);
         manager.add_peripheral(Box::new(console));
-        
+
         // Test address detection
         assert!(manager.is_peripheral_address(0x10000000));
         assert!(manager.is_peripheral_address(0x10000500));
         assert!(!manager.is_peripheral_address(0x20000000));
-        
+
         // Test read/write
         assert_eq!(manager.read(0x10000000).unwrap(), 0);
         assert!(manager.write(0x10000000, b'A' as u32).is_ok());
-        
+
         // Test non-peripheral address (should not fail)
         assert_eq!(manager.read(0x20000000).unwrap(), 0);
         assert!(manager.write(0x20000000, 0x12345678).is_ok());

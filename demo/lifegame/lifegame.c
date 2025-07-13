@@ -127,7 +127,7 @@ int main() {
     
     init_glider();
     
-    for (int generation = 0; generation < 20; generation++) {
+    for (int generation = 0; generation < 1000; generation++) {
         print_grid(grid);
         
         // Small delay to make it visible

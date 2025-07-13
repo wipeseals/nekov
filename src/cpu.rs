@@ -1392,13 +1392,13 @@ impl Cpu {
         if rs1 >= NUM_REGISTERS {
             return Err(EmulatorError::UnsupportedInstruction);
         }
-        
+
         let addr = self.read_register(rs1);
         if peripherals.is_peripheral_address(addr) {
             // Atomic operations on peripherals not supported
             return Err(EmulatorError::UnsupportedInstruction);
         }
-        
+
         // Use normal atomic implementation for memory addresses
         self.execute_atomic(instruction, memory)
     }
@@ -1663,7 +1663,7 @@ mod tests {
         // Create ADDI instruction: addi x2, x1, 5
         // Instruction format: [imm(12) | rs1(5) | funct3(3) | rd(5) | opcode(7)]
         // imm=5, rs1=1, funct3=0, rd=2, opcode=0x13
-        let instruction: u32 = (5 << 20) | (1 << 15) | (0 << 12) | (2 << 7) | 0x13;
+        let instruction: u32 = ((5 << 20) | (1 << 15)) | (2 << 7) | 0x13;
 
         // Write instruction to memory
         memory.write_word(cpu.pc, instruction).unwrap();
@@ -1700,7 +1700,7 @@ mod tests {
         cpu.pc = memory.base_address();
 
         // Create multiple ADDI instructions
-        let instruction: u32 = (1 << 20) | (1 << 15) | (0 << 12) | (1 << 7) | 0x13; // addi x1, x1, 1
+        let instruction: u32 = ((1 << 20) | (1 << 15)) | (1 << 7) | 0x13; // addi x1, x1, 1
 
         // Write instructions to memory
         for i in 0..10 {
@@ -1869,36 +1869,36 @@ mod tests {
         memory.write_word(base_addr + 4, 0xDEADBEEF).unwrap();
 
         // Test LW (Load Word)
-        let lw_instruction = (0 << 20) | (0 << 15) | (0x2 << 12) | (1 << 7) | 0x03; // lw x1, 0(x0)
+        let lw_instruction = ((0x2 << 12)) | (1 << 7) | 0x03; // lw x1, 0(x0)
         cpu.write_register(0, base_addr); // This won't actually change x0, but for the test we set the base
         cpu.execute_load(lw_instruction, &mut memory).unwrap();
         // Since x0 is always 0, we need to manually set up the test differently
 
         // Better test: use a non-zero base register
         cpu.write_register(2, base_addr);
-        let lw_instruction = (0 << 20) | (2 << 15) | (0x2 << 12) | (1 << 7) | 0x03; // lw x1, 0(x2)
+        let lw_instruction = ((2 << 15)) | (0x2 << 12) | (1 << 7) | 0x03; // lw x1, 0(x2)
         cpu.execute_load(lw_instruction, &mut memory).unwrap();
         assert_eq!(cpu.read_register(1), 0x12345678);
 
         // Test LB (Load Byte signed)
-        let lb_instruction = (0 << 20) | (2 << 15) | (0x0 << 12) | (3 << 7) | 0x03; // lb x3, 0(x2)
+        let lb_instruction = (((2 << 15))) | (3 << 7) | 0x03; // lb x3, 0(x2)
         cpu.execute_load(lb_instruction, &mut memory).unwrap();
         assert_eq!(cpu.read_register(3), 0x78); // LSB of 0x12345678
 
         // Test LBU (Load Byte unsigned)
-        let lbu_instruction = (0 << 20) | (2 << 15) | (0x4 << 12) | (4 << 7) | 0x03; // lbu x4, 0(x2)
+        let lbu_instruction = ((2 << 15)) | (0x4 << 12) | (4 << 7) | 0x03; // lbu x4, 0(x2)
         cpu.execute_load(lbu_instruction, &mut memory).unwrap();
         assert_eq!(cpu.read_register(4), 0x78);
 
         // Test SW (Store Word)
         cpu.write_register(5, 0xCAFEBABE);
-        let sw_instruction = (0 << 25) | (5 << 20) | (2 << 15) | (0x2 << 12) | (8 << 7) | 0x23; // sw x5, 8(x2)
+        let sw_instruction = ((5 << 20)) | (2 << 15) | (0x2 << 12) | (8 << 7) | 0x23; // sw x5, 8(x2)
         cpu.execute_store(sw_instruction, &mut memory).unwrap();
         assert_eq!(memory.read_word(base_addr + 8).unwrap(), 0xCAFEBABE);
 
         // Test SB (Store Byte)
         cpu.write_register(6, 0xAB);
-        let sb_instruction = (0 << 25) | (6 << 20) | (2 << 15) | (0x0 << 12) | (12 << 7) | 0x23; // sb x6, 12(x2)
+        let sb_instruction = (((6 << 20)) | (2 << 15)) | (12 << 7) | 0x23; // sb x6, 12(x2)
         cpu.execute_store(sb_instruction, &mut memory).unwrap();
         assert_eq!(memory.read_byte(base_addr + 12).unwrap(), 0xAB);
     }
@@ -1919,11 +1919,10 @@ mod tests {
         let imm_11 = 0u32;
         let imm_10_5 = 0u32;
         let imm_4_1 = 0b0100u32; // 4 in binary
-        let beq_instruction = (imm_12 << 31)
+        let beq_instruction = ((imm_12 << 31)
             | (imm_10_5 << 25)
             | (2 << 20)
-            | (1 << 15)
-            | (0x0 << 12)
+            | (1 << 15))
             | (imm_4_1 << 8)
             | (imm_11 << 7)
             | 0x63;
@@ -2002,7 +2001,7 @@ mod tests {
         // Test JALR (Jump and Link Register)
         cpu.pc = 2000;
         cpu.write_register(2, 3000);
-        let jalr_instruction = (4 << 20) | (2 << 15) | (0 << 12) | (3 << 7) | 0x67; // jalr x3, 4(x2)
+        let jalr_instruction = ((4 << 20) | (2 << 15)) | (3 << 7) | 0x67; // jalr x3, 4(x2)
         cpu.execute_jalr(jalr_instruction).unwrap();
         assert_eq!(cpu.read_register(3), 2004); // Return address
         assert_eq!(cpu.pc, 3004); // Jump target (3000 + 4)
@@ -2019,7 +2018,7 @@ mod tests {
         cpu.write_register(1, base_addr);
 
         // Test LR.W (Load Reserved Word)
-        let lr_instruction = (0x02 << 27) | (0 << 20) | (1 << 15) | (0x2 << 12) | (2 << 7) | 0x2F;
+        let lr_instruction = ((0x02 << 27)) | (1 << 15) | (0x2 << 12) | (2 << 7) | 0x2F;
         cpu.execute_atomic(lr_instruction, &mut memory).unwrap();
         assert_eq!(cpu.read_register(2), 100);
 
@@ -2042,7 +2041,7 @@ mod tests {
         // Test AMOADD.W
         cpu.write_register(7, 50);
         let amoadd_instruction =
-            (0x00 << 27) | (7 << 20) | (1 << 15) | (0x2 << 12) | (8 << 7) | 0x2F;
+            ((7 << 20)) | (1 << 15) | (0x2 << 12) | (8 << 7) | 0x2F;
         cpu.execute_atomic(amoadd_instruction, &mut memory).unwrap();
         assert_eq!(cpu.read_register(8), 300); // Old value
         assert_eq!(memory.read_word(base_addr).unwrap(), 350); // 300 + 50
@@ -2068,7 +2067,7 @@ mod tests {
 
         // Test CSRRS with rs1=0 (should not write)
         let old_csr = cpu.read_csr(0x301);
-        let csrrs_no_write = (0x301 << 20) | (0 << 15) | (2 << 12) | (3 << 7) | 0x73;
+        let csrrs_no_write = ((0x301 << 20)) | (2 << 12) | (3 << 7) | 0x73;
         assert!(cpu.execute_system(csrrs_no_write).is_ok());
         assert_eq!(cpu.read_csr(0x301), old_csr); // Should be unchanged
         assert_eq!(cpu.read_register(3), old_csr); // Should have read the value
@@ -2090,7 +2089,7 @@ mod tests {
         cpu.pc = base_addr;
 
         // Test FENCE instruction (funct3=0)
-        let fence_instruction = (0x0 << 12) | 0x0F;
+        let fence_instruction = 0x0F;
         memory.write_word(cpu.pc, fence_instruction).unwrap();
 
         let old_pc = cpu.pc;
