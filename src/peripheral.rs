@@ -20,16 +20,37 @@ pub trait Peripheral {
         let base = self.base_address();
         address >= base && address < base + self.size()
     }
+
+    /// Flush any buffered output (for console peripherals)
+    #[cfg(target_arch = "wasm32")]
+    fn flush(&mut self) {
+        // Default implementation does nothing
+    }
 }
 
 /// Console peripheral for standard I/O
 pub struct ConsolePeriph {
     base_addr: u32,
+    #[cfg(target_arch = "wasm32")]
+    buffer: String,
 }
 
 impl ConsolePeriph {
     pub fn new(base_addr: u32) -> Self {
-        Self { base_addr }
+        Self { 
+            base_addr,
+            #[cfg(target_arch = "wasm32")]
+            buffer: String::new(),
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn flush(&mut self) {
+        // Flush any remaining content in the buffer
+        if !self.buffer.is_empty() {
+            web_sys::console::log_1(&self.buffer.clone().into());
+            self.buffer.clear();
+        }
     }
 }
 
@@ -46,7 +67,20 @@ impl Peripheral for ConsolePeriph {
                 let ch = (value & 0xFF) as u8;
                 #[cfg(target_arch = "wasm32")]
                 {
-                    web_sys::console::log_1(&format!("{}", ch as char).into());
+                    let char = ch as char;
+                    if char == '\n' {
+                        // Log the complete line and clear the buffer
+                        if !self.buffer.is_empty() {
+                            web_sys::console::log_1(&self.buffer.clone().into());
+                            self.buffer.clear();
+                        } else {
+                            // Log empty line for standalone newlines
+                            web_sys::console::log_1(&"".into());
+                        }
+                    } else {
+                        // Accumulate the character in the buffer
+                        self.buffer.push(char);
+                    }
                 }
                 #[cfg(not(target_arch = "wasm32"))]
                 {
@@ -66,6 +100,15 @@ impl Peripheral for ConsolePeriph {
 
     fn size(&self) -> u32 {
         0x1000 // 4KB address space
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn flush(&mut self) {
+        // Flush any remaining content in the buffer
+        if !self.buffer.is_empty() {
+            web_sys::console::log_1(&self.buffer.clone().into());
+            self.buffer.clear();
+        }
     }
 }
 
@@ -109,6 +152,13 @@ impl PeripheralManager {
 
     pub fn is_peripheral_address(&self, address: u32) -> bool {
         self.peripherals.iter().any(|p| p.contains_address(address))
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn flush_all(&mut self) {
+        for peripheral in &mut self.peripherals {
+            peripheral.flush();
+        }
     }
 }
 

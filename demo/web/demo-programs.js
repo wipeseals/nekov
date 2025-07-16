@@ -50,45 +50,29 @@ function generateTestProgram() {
 
 // For the actual Game of Life, let's create a more sophisticated program
 function generateLifeGameProgram() {
-    // This would be a much more complex program
-    // For now, we'll create a simple program that demonstrates the concept
+    // Create a minimal test first - just write "Hello" to UART
     const instructions = [];
     
     const UART_BASE = 0x10000000;
     
     // Load UART base
-    instructions.push(0x10000337); // lui t0, 0x10000
+    instructions.push(0x100002B7); // lui t0, 0x10000
     
-    // Simple game of life simulation output
-    const pattern = [
-        "=== Conway's Game of Life ===\n",
-        "Generation 1:\n",
-        "..........#..........\n",
-        ".........#.#.........\n",
-        ".........##..........\n",
-        ".....................\n",
-        "\nGeneration 2:\n",
-        "........###..........\n",
-        "........#.#..........\n",
-        ".........##..........\n",
-        ".....................\n",
-        "\nGame completed!\n"
-    ];
+    // Write 'H' to UART
+    instructions.push(0x04800313); // addi t1, x0, 'H' (0x48)
+    instructions.push(0x00632A23); // sw t1, 0(t0)
     
-    for (const line of pattern) {
-        for (let i = 0; i < line.length; i++) {
-            const char = line.charCodeAt(i);
-            
-            // Load character and send to UART
-            instructions.push(0x00000313 | (char << 20)); // addi t1, x0, char
-            instructions.push(0x00632023); // sw t1, 0(t0)
-            
-            // Simple delay loop (very short for demo)
-            instructions.push(0x00100393); // addi t2, x0, 1
-            instructions.push(0xfff38393); // addi t2, t2, -1
-            instructions.push(0xfe039ee3); // bnez t2, loop (previous instruction)
-        }
-    }
+    // Write 'i' to UART
+    instructions.push(0x06900313); // addi t1, x0, 'i' (0x69)
+    instructions.push(0x00632A23); // sw t1, 0(t0)
+    
+    // Write '!' to UART
+    instructions.push(0x02100313); // addi t1, x0, '!' (0x21)
+    instructions.push(0x00632A23); // sw t1, 0(t0)
+    
+    // Write newline to UART
+    instructions.push(0x00a00313); // addi t1, x0, '\n' (0x0a)
+    instructions.push(0x00632A23); // sw t1, 0(t0)
     
     // Exit
     instructions.push(0x05d00893); // addi a7, x0, 93 (sys_exit)
