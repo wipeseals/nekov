@@ -1,7 +1,7 @@
 # Makefile for Conway's Game of Life for RISC-V
 
-CC = riscv32-unknown-elf-gcc
-OBJCOPY = riscv32-unknown-elf-objcopy
+CC = riscv64-unknown-elf-gcc
+OBJCOPY = riscv64-unknown-elf-objcopy
 CFLAGS = -march=rv32ima -mabi=ilp32 -nostdlib -nostartfiles -ffreestanding -Os
 LDFLAGS = -T linker.ld
 

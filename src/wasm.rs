@@ -75,14 +75,19 @@ impl WasmEmulator {
 
     #[wasm_bindgen]
     pub fn run(&mut self, max_instructions: Option<u32>) -> Result<u32, JsValue> {
-        self.cpu
-            .run_with_peripherals(&mut self.memory, &mut self.peripherals, max_instructions)
-            .map_err(|e| match e {
-                crate::EmulatorError::EcallTermination => {
-                    JsValue::from_str("Program terminated normally")
-                }
-                _ => JsValue::from_str(&format!("CPU error: {}", e)),
-            })
+        let result = self.cpu
+            .run_with_peripherals(&mut self.memory, &mut self.peripherals, max_instructions);
+        
+        // Flush any remaining console output
+        #[cfg(target_arch = "wasm32")]
+        self.peripherals.flush_all();
+        
+        result.map_err(|e| match e {
+            crate::EmulatorError::EcallTermination => {
+                JsValue::from_str("Program terminated normally")
+            }
+            _ => JsValue::from_str(&format!("CPU error: {}", e)),
+        })
     }
 
     #[wasm_bindgen]

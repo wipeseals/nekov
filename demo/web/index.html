@@ -235,7 +235,6 @@
                 wasm = module;
                 
                 emulator = new wasm.WasmEmulator();
-                initDemoPrograms();
                 updateUI();
                 showMainContent();
                 
@@ -287,38 +286,29 @@
             }
         }
 
-        // Demo program (Conway's Game of Life compiled for RISC-V)
-        let lifegameDemo = null;
-
-        // Initialize demo programs when available
-        function initDemoPrograms() {
-            if (typeof generateLifeGameProgram === 'function') {
-                lifegameDemo = generateLifeGameProgram();
-            }
-        }
-
-        window.loadDemo = function() {
+        // Load the actual Conway's Game of Life binary
+        window.loadDemo = async function() {
             if (!emulator) return;
-            
-            // Initialize demo programs if not already done
-            if (!lifegameDemo) {
-                initDemoPrograms();
-            }
-            
-            if (!lifegameDemo) {
-                showError('Demo program not available');
-                return;
-            }
             
             try {
                 console.log('Loading Conway\'s Game of Life demo...');
+                updateStatus('Loading Demo', 'running');
+                
+                // Fetch the actual lifegame.bin file
+                const response = await fetch('/lifegame/lifegame.bin');
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch lifegame.bin: ${response.statusText}`);
+                }
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const binaryData = new Uint8Array(arrayBuffer);
                 
                 emulator.reset();
-                const loadAddr = emulator.load_binary(lifegameDemo);
-                console.log(`Demo loaded at address 0x${loadAddr.toString(16)}`);
+                const loadAddr = emulator.load_binary(binaryData);
+                console.log(`Demo loaded at address 0x${loadAddr.toString(16).padStart(8, '0')}`);
                 
                 updateUI();
-                updateStatus('Demo Loaded', 'ready');
+                updateStatus('Demo ready! Click "Run Program" to start Conway\'s Game of Life.', 'ready');
                 
                 document.getElementById('run-btn').disabled = false;
                 document.getElementById('step-btn').disabled = false;
@@ -326,6 +316,7 @@
                 console.log('Demo ready! Click "Run Program" to start Conway\'s Game of Life.');
             } catch (error) {
                 showError('Failed to load demo: ' + error.message);
+                updateStatus('Demo Load Failed', 'stopped');
             }
         };
 
