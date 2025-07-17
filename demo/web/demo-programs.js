@@ -50,13 +50,14 @@ function generateTestProgram() {
 
 // For the actual Game of Life, let's create a more sophisticated program
 function generateLifeGameProgram() {
-    // Create a program that outputs Conway's Game of Life simulation
+    // This would be a much more complex program
+    // For now, we'll create a simple program that demonstrates the concept
     const instructions = [];
     
     const UART_BASE = 0x10000000;
     
     // Load UART base
-    instructions.push(0x100002B7); // lui t0, 0x10000
+    instructions.push(0x10000337); // lui t0, 0x10000
     
     // Simple game of life simulation output
     const pattern = [
@@ -80,7 +81,7 @@ function generateLifeGameProgram() {
             
             // Load character and send to UART
             instructions.push(0x00000313 | (char << 20)); // addi t1, x0, char
-            instructions.push(0x00632A23); // sw t1, 0(t0)
+            instructions.push(0x00632023); // sw t1, 0(t0)
             
             // Simple delay loop (very short for demo)
             instructions.push(0x00100393); // addi t2, x0, 1
